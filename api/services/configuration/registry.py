@@ -95,6 +95,7 @@ class ServiceProviders(str, Enum):
     AZURE_REALTIME = "azure_realtime"
     SMALLEST = "smallest"
     XAI = "xai"
+    LMNT = "lmnt"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -126,6 +127,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.SARVAM,
         ServiceProviders.SMALLEST,
         ServiceProviders.XAI,
+        ServiceProviders.LMNT,
     ]
     api_key: str | list[str]
 
@@ -261,6 +263,7 @@ DEEPGRAM_PROVIDER_MODEL_CONFIG = provider_model_config("Deepgram")
 ELEVENLABS_PROVIDER_MODEL_CONFIG = provider_model_config("ElevenLabs")
 CARTESIA_PROVIDER_MODEL_CONFIG = provider_model_config("Cartesia")
 XAI_PROVIDER_MODEL_CONFIG = provider_model_config("xAI")
+LMNT_PROVIDER_MODEL_CONFIG = provider_model_config("LMNT")
 INWORLD_PROVIDER_MODEL_CONFIG = provider_model_config(
     "Inworld",
     description=(
@@ -584,6 +587,20 @@ class SarvamLLMConfiguration(BaseLLMConfiguration):
 
 
 OPENAI_REALTIME_MODELS = ["gpt-realtime-2"]
+# ISO 639-1 codes accepted by the Realtime API's input_audio_transcription.
+# Not exhaustive — the field allows custom input.
+OPENAI_REALTIME_LANGUAGES = [
+    "en",
+    "es",
+    "pt",
+    "fr",
+    "de",
+    "it",
+    "hi",
+    "ja",
+    "ko",
+    "zh",
+]
 OPENAI_REALTIME_VOICES = [
     "alloy",
     "ash",
@@ -618,10 +635,21 @@ class OpenAIRealtimeLLMConfiguration(BaseLLMConfiguration):
             "allow_custom_input": True,
         },
     )
+    language: str | None = Field(
+        default=None,
+        description=(
+            "ISO 639-1 language code for input audio transcription (e.g. 'pt', 'es'). "
+            "Improves transcription accuracy and latency. Leave unset to auto-detect."
+        ),
+        json_schema_extra={
+            "examples": OPENAI_REALTIME_LANGUAGES,
+            "allow_custom_input": True,
+        },
+    )
 
 
 GROK_REALTIME_MODELS = ["grok-voice-think-fast-1.0"]
-GROK_REALTIME_VOICES = ["Ara", "Rex", "Sal", "Eve", "Leo"]
+GROK_REALTIME_VOICES = ["ara", "rex", "sal", "eve", "leo"]
 ULTRAVOX_REALTIME_MODELS = ["ultravox-v0.7", "fixie-ai/ultravox"]
 
 
@@ -638,7 +666,7 @@ class GrokRealtimeLLMConfiguration(BaseLLMConfiguration):
         },
     )
     voice: str = Field(
-        default="Ara",
+        default="ara",
         description="Voice the model speaks in.",
         json_schema_extra={
             "examples": GROK_REALTIME_VOICES,
@@ -756,7 +784,7 @@ class AzureRealtimeLLMConfiguration(BaseLLMConfiguration):
     model_config = AZURE_REALTIME_PROVIDER_MODEL_CONFIG
     provider: Literal[ServiceProviders.AZURE_REALTIME] = ServiceProviders.AZURE_REALTIME
     model: str = Field(
-        default="gpt-4o-realtime-preview",
+        default="gpt-realtime",
         description="Azure OpenAI realtime deployment name.",
         json_schema_extra={
             "examples": AZURE_REALTIME_MODELS,
@@ -775,8 +803,11 @@ class AzureRealtimeLLMConfiguration(BaseLLMConfiguration):
         },
     )
     api_version: str = Field(
-        default="2025-04-01-preview",
-        description="Azure OpenAI API version.",
+        default="v1",
+        description=(
+            "Azure OpenAI Realtime protocol version. Use 'v1' for the GA API; "
+            "date-based versions select the deprecated preview endpoint."
+        ),
         json_schema_extra={
             "examples": AZURE_REALTIME_API_VERSIONS,
         },
@@ -1313,6 +1344,40 @@ class XAITTSConfiguration(BaseServiceConfiguration):
         return "xai-tts"
 
 
+LMNT_TTS_MODELS = ["aurora", "blizzard"]
+LMNT_TTS_VOICES = ["lily", "daniel", "ava", "caleb", "leah", "zeke"]
+
+
+@register_tts
+class LmntTTSConfiguration(BaseTTSConfiguration):
+    model_config = LMNT_PROVIDER_MODEL_CONFIG
+    provider: Literal[ServiceProviders.LMNT] = ServiceProviders.LMNT
+    model: str = Field(
+        default="aurora",
+        description=(
+            "LMNT TTS model. 'aurora' is the general-purpose model; 'blizzard' "
+            "targets more expressive, conversational speech."
+        ),
+        json_schema_extra={"examples": LMNT_TTS_MODELS},
+    )
+    voice: str = Field(
+        default="lily",
+        description=(
+            "LMNT voice ID. Use a stock voice name or a custom voice ID from "
+            "your LMNT account."
+        ),
+        json_schema_extra={"examples": LMNT_TTS_VOICES, "allow_custom_input": True},
+    )
+    language: str = Field(
+        default="en",
+        description=(
+            "Language code for synthesis (e.g. 'en', 'es', 'fr', 'de', 'pt', "
+            "'zh', 'ko', 'hi')."
+        ),
+        json_schema_extra={"allow_custom_input": True},
+    )
+
+
 TTSConfig = Annotated[
     Union[
         DeepgramTTSConfiguration,
@@ -1330,6 +1395,7 @@ TTSConfig = Annotated[
         AzureSpeechTTSConfiguration,
         SmallestAITTSConfiguration,
         XAITTSConfiguration,
+        LmntTTSConfiguration,
     ],
     Field(discriminator="provider"),
 ]

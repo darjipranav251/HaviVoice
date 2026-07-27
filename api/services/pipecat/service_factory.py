@@ -62,6 +62,7 @@ from pipecat.services.huggingface.stt import (
     HuggingFaceSTTSettings,
 )
 from pipecat.services.inworld.tts import InworldTTSService, InworldTTSSettings
+from pipecat.services.lmnt.tts import LmntTTSService, LmntTTSSettings
 from pipecat.services.minimax.llm import MiniMaxLLMService
 from pipecat.services.minimax.tts import MiniMaxTTSSettings
 from pipecat.services.openai._constants import OPENAI_SAMPLE_RATE
@@ -86,7 +87,7 @@ from pipecat.services.speechmatics.stt import (
     SpeechmaticsSTTService,
     SpeechmaticsSTTSettings,
 )
-from pipecat.services.xai.tts import XAIHttpTTSService, XAITTSSettings
+from pipecat.services.xai.tts import XAITTSService, XAIWebsocketTTSSettings
 from pipecat.transcriptions.language import Language
 from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
@@ -227,7 +228,6 @@ def create_stt_service(
         # Other models than flux
         # Use language from user config, defaulting to "multi" for multilingual support
         language = getattr(user_config.stt, "language", None) or "multi"
-        logger.debug(f"Using DeepGram Model - {user_config.stt.model}")
         return DeepgramSTTService(
             api_key=user_config.stt.api_key,
             settings=DeepgramSTTSettings(
@@ -818,13 +818,35 @@ def create_tts_service(
                 pipecat_language = Language(language_code)
             except ValueError:
                 pipecat_language = Language.EN
-        return XAIHttpTTSService(
+        return XAITTSService(
             api_key=user_config.tts.api_key,
-            sample_rate=audio_config.transport_out_sample_rate,
-            encoding="pcm",
-            settings=XAITTSSettings(
+            settings=XAIWebsocketTTSSettings(
                 voice=voice,
                 language=pipecat_language,
+            ),
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
+    elif user_config.tts.provider == ServiceProviders.LMNT.value:
+        voice = getattr(user_config.tts, "voice", None) or "lily"
+        model = getattr(user_config.tts, "model", None) or "aurora"
+        language_code = getattr(user_config.tts, "language", None) or "en"
+        try:
+            pipecat_language = Language(language_code)
+        except ValueError:
+            pipecat_language = Language.EN
+        return LmntTTSService(
+            api_key=user_config.tts.api_key,
+            sample_rate=audio_config.transport_out_sample_rate,
+            # LMNT's streaming `format` field expects "raw" for signed 16-bit PCM
+            # at the requested sample rate, which is what the output transport
+            # consumes; "pcm_s16le" is not a valid LMNT format value.
+            output_format="raw",
+            settings=LmntTTSSettings(
+                voice=voice,
+                language=pipecat_language,
+                model=model,
             ),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
@@ -1009,6 +1031,13 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
             SessionProperties,
         )
 
+        # Pin the transcription language when configured. Without it the model
+        # auto-detects per utterance, which misfires on short/noisy telephony
+        # audio (e.g. Portuguese transcribed as English or Chinese).
+        transcription_kwargs = {}
+        if language:
+            transcription_kwargs["language"] = language
+
         return DograhOpenAIRealtimeLLMService(
             api_key=api_key,
             settings=DograhOpenAIRealtimeLLMService.Settings(
@@ -1016,7 +1045,9 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                 session_properties=SessionProperties(
                     audio=AudioConfiguration(
                         input=AudioInput(
-                            transcription=InputAudioTranscription(),
+                            transcription=InputAudioTranscription(
+                                **transcription_kwargs
+                            ),
                         ),
                         output=AudioOutput(
                             voice=voice or "alloy",
@@ -1029,14 +1060,28 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
         from api.services.pipecat.realtime.grok_realtime import (
             DograhGrokRealtimeLLMService,
         )
-        from pipecat.services.xai.realtime.events import SessionProperties
+        from pipecat.services.xai.realtime.events import (
+            AudioConfiguration,
+            AudioInput,
+            InputAudioTranscription,
+            SessionProperties,
+        )
+
+        grok_voice = voice or "ara"
+        if grok_voice.lower() in {"ara", "rex", "sal", "eve", "leo"}:
+            grok_voice = grok_voice.lower()
 
         return DograhGrokRealtimeLLMService(
             api_key=api_key,
             settings=DograhGrokRealtimeLLMService.Settings(
                 model=model,
                 session_properties=SessionProperties(
-                    voice=voice or "Ara",
+                    voice=grok_voice,
+                    audio=AudioConfiguration(
+                        input=AudioInput(
+                            transcription=InputAudioTranscription(),
+                        ),
+                    ),
                 ),
             ),
         )
@@ -1115,19 +1160,25 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                 detail="Azure Realtime requires an endpoint.",
             )
         _validate_runtime_service_url(endpoint, "endpoint")
-        api_version = (
-            getattr(realtime_config, "api_version", None) or "2025-04-01-preview"
-        )
-        # Construct the Azure Realtime WebSocket URL
-        # https://<resource>.openai.azure.com/openai/realtime?api-version=<ver>&deployment=<model>
+        api_version = getattr(realtime_config, "api_version", None) or "v1"
         parsed_endpoint = urlparse(endpoint)
+        if api_version == "v1":
+            # Azure's GA Realtime API uses the deployment name as `model` and
+            # deliberately has no date-based api-version query parameter.
+            path = "/openai/v1/realtime"
+            query = urlencode({"model": model})
+        else:
+            # Preserve explicitly configured preview deployments while users
+            # migrate. Microsoft deprecated this protocol on April 30, 2026.
+            path = "/openai/realtime"
+            query = urlencode({"api-version": api_version, "deployment": model})
         wss_url = urlunparse(
             (
                 "wss",
                 parsed_endpoint.netloc,
-                "/openai/realtime",
+                path,
                 "",
-                urlencode({"api-version": api_version, "deployment": model}),
+                query,
                 "",
             )
         )
