@@ -108,6 +108,10 @@ export async function getOSSUser(): Promise<LocalUser | null> {
         email: parsed.email,
         provider: 'local',
         organizationId: parsed.organizationId || (parsed.organization_id ? String(parsed.organization_id) : undefined),
+        is_superuser: !!parsed.is_superuser,
+        trial_ends_at: parsed.trial_ends_at,
+        current_plan: parsed.current_plan,
+        stripe_subscription_status: parsed.stripe_subscription_status,
       };
     } catch (error) {
       logger.error('Error parsing user cookie:', error);

@@ -45,6 +45,10 @@ router = APIRouter(prefix="/user")
 class AuthUserResponse(TypedDict):
     id: int
     is_superuser: bool
+    trial_ends_at: Optional[str]
+    current_plan: Optional[str]
+    stripe_subscription_status: Optional[str]
+    organization_id: Optional[int]
 
 
 class DefaultConfigurationsResponse(BaseModel):
@@ -90,9 +94,24 @@ async def get_default_configurations() -> DefaultConfigurationsResponse:
 async def get_auth_user(
     user: UserModel = Depends(get_user),
 ) -> AuthUserResponse:
+    trial_ends_at = None
+    current_plan = None
+    stripe_subscription_status = None
+    
+    if user.selected_organization_id:
+        org = await db_client.get_organization_by_id(user.selected_organization_id)
+        if org:
+            trial_ends_at = org.trial_ends_at.isoformat() if org.trial_ends_at else None
+            current_plan = org.current_plan
+            stripe_subscription_status = org.stripe_subscription_status
+
     return {
         "id": user.id,
         "is_superuser": user.is_superuser,
+        "trial_ends_at": trial_ends_at,
+        "current_plan": current_plan,
+        "stripe_subscription_status": stripe_subscription_status,
+        "organization_id": user.selected_organization_id,
     }
 
 

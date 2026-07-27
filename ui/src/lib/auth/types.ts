@@ -14,6 +14,10 @@ export interface LocalUser extends BaseUser {
   organizationId?: string;
   displayName?: string;
   provider_id?: string;
+  is_superuser?: boolean;
+  trial_ends_at?: string;
+  current_plan?: string;
+  stripe_subscription_status?: string;
 }
 
 // Union type for all user types

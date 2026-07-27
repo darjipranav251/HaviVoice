@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Menu, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import React, { ReactNode } from "react";
 
@@ -12,8 +12,11 @@ import { PostHogEvent } from "@/constants/posthog-events";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
 
+import { AdminModeBanner } from "./AdminModeBanner";
 import { AppSidebar } from "./AppSidebar";
 import { GitHubStarBadge } from "./GitHubStarBadge";
+import { useAuth } from "@/lib/auth";
+import { SubscriptionGate } from "./SubscriptionGate";
 
 function AppHeader() {
   const { toggleSidebar } = useSidebar();
@@ -24,7 +27,7 @@ function AppHeader() {
         <Button variant="ghost" size="icon" onClick={toggleSidebar} aria-label="Open menu" className="md:hidden">
           <Menu className="h-5 w-5" />
         </Button>
-        <Link href="/" className="text-lg font-bold md:hidden">Dograh</Link>
+        <Link href="/" className="text-lg font-bold md:hidden">HaviAI</Link>
       </div>
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" asChild>
@@ -99,10 +102,35 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   stickyTabs,
 }) => {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAuth();
 
   // Check if current route should have sidebar
   // Hide sidebar for root (/), /handler routes (Stack Auth routes), and /auth routes
   const shouldShowSidebar = pathname !== "/" && !pathname.startsWith("/handler") && !pathname.startsWith("/auth");
+
+  React.useEffect(() => {
+    if (!shouldShowSidebar) return;
+    if (!user) return; // Wait for user object to load
+
+    const isSuperuser = (user as any)?.is_superuser ?? false;
+    if (!isSuperuser) {
+      const allowedNormalPaths = [
+        "/overview",
+        "/recordings",
+        "/usage",
+        "/billing",
+        "/reports",
+      ];
+      // Check if current pathname starts with any allowed paths
+      const isAllowed = allowedNormalPaths.some(
+        (path) => pathname === path || pathname.startsWith(path + "/")
+      );
+      if (!isAllowed) {
+        router.push("/overview");
+      }
+    }
+  }, [user, pathname, shouldShowSidebar, router]);
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);
@@ -111,11 +139,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   // across route changes (avoids React hooks ordering violations during navigation).
   return (
     <SidebarProvider defaultOpen>
-      {shouldShowSidebar ? (
-        <LeadFormsProvider>
+      <LeadFormsProvider>
+        {shouldShowSidebar ? (
           <div className="flex min-h-screen w-full">
             <AppSidebar />
-            <SidebarInset className="flex-1">
+            <SidebarInset className="flex-1 flex flex-col">
+              <AdminModeBanner />
               <BackendStatusBanner />
               {!isWorkflowEditor && <AppHeader />}
               {/* Optional header area for specific pages */}
@@ -142,17 +171,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
               {/* Main content area */}
               <main className="app-surface flex-1">
-                {children}
+                <SubscriptionGate>{children}</SubscriptionGate>
               </main>
             </SidebarInset>
           </div>
-        </LeadFormsProvider>
-      ) : (
-        <div className="app-surface w-full flex-1">
-          <BackendStatusBanner />
-          {children}
-        </div>
-      )}
+        ) : (
+          <div className="app-surface w-full flex-1 flex flex-col">
+            <AdminModeBanner />
+            <BackendStatusBanner />
+            <SubscriptionGate>{children}</SubscriptionGate>
+          </div>
+        )}
+      </LeadFormsProvider>
     </SidebarProvider>
   );
 };

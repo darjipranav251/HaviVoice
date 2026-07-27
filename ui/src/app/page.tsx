@@ -17,6 +17,13 @@ export default async function Home() {
   if (authProvider === 'local') {
     logger.debug('[HomePage] Local provider detected, checking for workflows');
 
+    const user = await getServerUser();
+    const isSuperuser = user && 'is_superuser' in user ? user.is_superuser : true;
+    if (user && !isSuperuser) {
+      logger.debug('[HomePage] Redirecting normal user to /overview');
+      redirect('/overview');
+    }
+
     try {
       const accessToken = await getServerAccessToken();
       if (accessToken) {

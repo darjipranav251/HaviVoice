@@ -29,7 +29,7 @@ type ModelMode = "realtime" | "dograh" | "byok";
 // Sentinel language value for "Multilingual (Auto-detect)".
 const MULTILINGUAL_LANGUAGE_CODE = "multi";
 
-interface DograhDefaults {
+interface HaviAIDefaults {
     voices: string[];
     allow_custom_input?: boolean;
     speeds: number[];
@@ -49,7 +49,7 @@ interface DograhDefaults {
 }
 
 export interface ModelConfigurationDefaultsV2 {
-    dograh: DograhDefaults;
+    dograh: HaviAIDefaults;
     byok: {
         pipeline: ServiceConfigurationDefaults;
         realtime: {
@@ -61,7 +61,7 @@ export interface ModelConfigurationDefaultsV2 {
     };
 }
 
-interface DograhFormState {
+interface HaviAIFormState {
     api_key: string;
     voice: string;
     speed: number;
@@ -93,7 +93,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
         : null;
 }
 
-function isDograhEffectiveConfig(config: Record<string, unknown> | null | undefined): boolean {
+function isHaviAIEffectiveConfig(config: Record<string, unknown> | null | undefined): boolean {
     if (!config || config.is_realtime) return false;
     const llm = asRecord(config.llm);
     const tts = asRecord(config.tts);
@@ -172,7 +172,7 @@ function getByokInitialConfig(
         return matchesTab(byokConfiguration) ? byokConfiguration : emptyByokInitialConfig(wantRealtime);
     }
 
-    if (configuration?.mode === "dograh" || isDograhEffectiveConfig(effectiveConfiguration)) {
+    if (configuration?.mode === "dograh" || isHaviAIEffectiveConfig(effectiveConfiguration)) {
         return emptyByokInitialConfig(wantRealtime);
     }
 
@@ -180,23 +180,23 @@ function getByokInitialConfig(
     return matchesTab(effective) ? (effective as Record<string, unknown>) : emptyByokInitialConfig(wantRealtime);
 }
 
-function buildDograhState(
+function buildHaviAIState(
     defaults: ModelConfigurationDefaultsV2,
     configuration: Record<string, unknown> | null,
     effectiveConfiguration: Record<string, unknown> | null,
-): DograhFormState {
+): HaviAIFormState {
     const fallback = defaults.dograh.defaults;
-    const configuredDograh = configuration?.mode === "dograh" ? asRecord(configuration.dograh) : null;
-    if (configuredDograh) {
+    const configuredHaviAI = configuration?.mode === "dograh" ? asRecord(configuration.dograh) : null;
+    if (configuredHaviAI) {
         return {
-            api_key: String(configuredDograh.api_key || ""),
-            voice: String(configuredDograh.voice || fallback.voice),
-            speed: numberOrDefault(configuredDograh.speed, fallback.speed),
-            language: String(configuredDograh.language || fallback.language),
+            api_key: String(configuredHaviAI.api_key || ""),
+            voice: String(configuredHaviAI.voice || fallback.voice),
+            speed: numberOrDefault(configuredHaviAI.speed, fallback.speed),
+            language: String(configuredHaviAI.language || fallback.language),
         };
     }
 
-    if (isDograhEffectiveConfig(effectiveConfiguration)) {
+    if (isHaviAIEffectiveConfig(effectiveConfiguration)) {
         const llm = asRecord(effectiveConfiguration?.llm);
         const tts = asRecord(effectiveConfiguration?.tts);
         const stt = asRecord(effectiveConfiguration?.stt);
@@ -224,7 +224,7 @@ function preferredMode(
     if (configuration?.mode === "byok") {
         return asRecord(configuration.byok)?.mode === "realtime" ? "realtime" : "byok";
     }
-    if (isDograhEffectiveConfig(effectiveConfiguration)) return "dograh";
+    if (isHaviAIEffectiveConfig(effectiveConfiguration)) return "dograh";
     return Boolean(effectiveConfiguration?.is_realtime) ? "realtime" : "byok";
 }
 
@@ -278,7 +278,7 @@ function ThirdPartyProviderNotice() {
             <div>
                 <p className="font-medium">Third-party provider data notice</p>
                 <p className="mt-1 leading-6">
-                    Dograh sends data required by the selected model service. This may include prompts,
+                    HaviAI sends data required by the selected model service. This may include prompts,
                     transcripts, audio, generated text, tool data, and request metadata depending on the
                     provider and service type. Review the provider&apos;s data and retention policies before
                     using sensitive data.
@@ -318,15 +318,15 @@ function MetricPrice({
 
 function PricingSummary({
     pricing,
-    includeDograhModel,
+    includeHaviAIModel,
     thirdPartyModels,
 }: {
     pricing?: ModelConfigurationPricingResponse | null;
-    includeDograhModel: boolean;
+    includeHaviAIModel: boolean;
     thirdPartyModels?: boolean;
 }) {
     const platformPrice = pricing?.platform_usage;
-    const dograhModelPrice = includeDograhModel ? pricing?.dograh_model : null;
+    const dograhModelPrice = includeHaviAIModel ? pricing?.dograh_model : null;
     if (!platformPrice && !dograhModelPrice) return null;
 
     return (
@@ -337,7 +337,7 @@ function PricingSummary({
                     <MetricPrice label="Platform usage" price={platformPrice} />
                 )}
                 {dograhModelPrice && (
-                    <MetricPrice label="Dograh model usage" price={dograhModelPrice} />
+                    <MetricPrice label="HaviAI model usage" price={dograhModelPrice} />
                 )}
                 {thirdPartyModels && (
                     <p className="text-muted-foreground">
@@ -359,7 +359,7 @@ export function AIModelConfigurationV2Editor({
 }: AIModelConfigurationV2EditorProps) {
     const defaultsForByok = useMemo(() => byokDefaults(defaults), [defaults]);
     const [mode, setMode] = useState<ModelMode>("dograh");
-    const [dograh, setDograh] = useState<DograhFormState>(() => ({
+    const [dograh, setHaviAI] = useState<HaviAIFormState>(() => ({
         api_key: "",
         voice: defaults.dograh.defaults.voice,
         speed: defaults.dograh.defaults.speed,
@@ -367,7 +367,7 @@ export function AIModelConfigurationV2Editor({
     }));
     const [realtimeInitialConfig, setRealtimeInitialConfig] = useState<Record<string, unknown> | null>(null);
     const [pipelineInitialConfig, setPipelineInitialConfig] = useState<Record<string, unknown> | null>(null);
-    const [isSavingDograh, setIsSavingDograh] = useState(false);
+    const [isSavingHaviAI, setIsSavingHaviAI] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const allowCustomVoice = defaults.dograh.allow_custom_input ?? false;
@@ -382,14 +382,14 @@ export function AIModelConfigurationV2Editor({
         const rawConfiguration = asRecord(configuration);
         const rawEffectiveConfiguration = asRecord(effectiveConfiguration);
         setMode(preferredMode(rawConfiguration, rawEffectiveConfiguration));
-        const nextDograh = buildDograhState(defaults, rawConfiguration, rawEffectiveConfiguration);
-        setDograh(nextDograh);
+        const nextHaviAI = buildHaviAIState(defaults, rawConfiguration, rawEffectiveConfiguration);
+        setHaviAI(nextHaviAI);
         setRealtimeInitialConfig(getByokInitialConfig(rawConfiguration, rawEffectiveConfiguration, true));
         setPipelineInitialConfig(getByokInitialConfig(rawConfiguration, rawEffectiveConfiguration, false));
     }, [configuration, defaults, effectiveConfiguration, allowCustomVoice]);
 
-    const saveDograhConfiguration = async () => {
-        setIsSavingDograh(true);
+    const saveHaviAIConfiguration = async () => {
+        setIsSavingHaviAI(true);
         setError(null);
         try {
             if (
@@ -398,7 +398,7 @@ export function AIModelConfigurationV2Editor({
                 || dograh.speed > dograhSpeedRange.max
             ) {
                 throw new Error(
-                    `Dograh speed must be between ${dograhSpeedRange.min} and ${dograhSpeedRange.max}.`,
+                    `HaviAI speed must be between ${dograhSpeedRange.min} and ${dograhSpeedRange.max}.`,
                 );
             }
             await onSave({
@@ -414,7 +414,7 @@ export function AIModelConfigurationV2Editor({
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to save configuration");
         } finally {
-            setIsSavingDograh(false);
+            setIsSavingHaviAI(false);
         }
     };
 
@@ -460,7 +460,7 @@ export function AIModelConfigurationV2Editor({
             <Tabs value={mode} onValueChange={(value) => setMode(value as ModelMode)} className="space-y-6">
                 <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="realtime">Speech to Speech</TabsTrigger>
-                    <TabsTrigger value="dograh">Dograh</TabsTrigger>
+                    <TabsTrigger value="dograh">HaviAI</TabsTrigger>
                     <TabsTrigger value="byok">BYOK</TabsTrigger>
                 </TabsList>
 
@@ -468,7 +468,7 @@ export function AIModelConfigurationV2Editor({
                     <p className="mb-4 text-sm text-muted-foreground">
                         A single speech-to-speech model handles the conversation in realtime (no separate transcriber or voice). An LLM is still required for variable extraction and QA.
                     </p>
-                    <PricingSummary pricing={pricing} includeDograhModel={false} thirdPartyModels />
+                    <PricingSummary pricing={pricing} includeHaviAIModel={false} thirdPartyModels />
                     <ServiceConfigurationForm
                         key={`realtime-${JSON.stringify(realtimeInitialConfig)}`}
                         mode="global"
@@ -483,7 +483,7 @@ export function AIModelConfigurationV2Editor({
 
                 <TabsContent value="dograh" className="mt-0">
                     <p className="mb-4 text-sm text-muted-foreground">
-                        Dograh provides a managed transcriber, LLM, and voice pipeline. Select a voice and language while Dograh manages the underlying model providers.{" "}
+                        HaviAI provides a managed transcriber, LLM, and voice pipeline. Select a voice and language while HaviAI manages the underlying model providers.{" "}
                         We offer custom pricing and a 15-second pulse with a monthly commitment.{" "}
                         <a
                             href="https://www.dograh.com/contact"
@@ -495,7 +495,7 @@ export function AIModelConfigurationV2Editor({
                         </a>
                         .
                     </p>
-                    <PricingSummary pricing={pricing} includeDograhModel />
+                    <PricingSummary pricing={pricing} includeHaviAIModel />
                     <Card>
                         <CardContent className="pt-6">
                             <div className="grid gap-4 sm:grid-cols-2">
@@ -504,14 +504,14 @@ export function AIModelConfigurationV2Editor({
                                     <VoiceSelectorModal
                                         provider="dograh"
                                         value={dograh.voice}
-                                        onChange={(voice) => setDograh({ ...dograh, voice })}
+                                        onChange={(voice) => setHaviAI({ ...dograh, voice })}
                                         allowManualInput={allowCustomVoice}
                                     />
                                 </div>
 
                                 <div className="space-y-2 sm:col-span-2">
                                     <Label>Language</Label>
-                                    <Select value={dograh.language} onValueChange={(language) => setDograh({ ...dograh, language })}>
+                                    <Select value={dograh.language} onValueChange={(language) => setHaviAI({ ...dograh, language })}>
                                         <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Select language" />
                                         </SelectTrigger>
@@ -541,7 +541,7 @@ export function AIModelConfigurationV2Editor({
                                         value={dograh.speed}
                                         onChange={(event) => {
                                             const speed = event.currentTarget.valueAsNumber;
-                                            setDograh({
+                                            setHaviAI({
                                                 ...dograh,
                                                 speed: Number.isFinite(speed) ? speed : defaults.dograh.defaults.speed,
                                             });
@@ -557,16 +557,16 @@ export function AIModelConfigurationV2Editor({
                                             id="dograh-api-key"
                                             className="pl-9"
                                             value={dograh.api_key}
-                                            onChange={(event) => setDograh({ ...dograh, api_key: event.target.value })}
+                                            onChange={(event) => setHaviAI({ ...dograh, api_key: event.target.value })}
                                             placeholder="Enter API key"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <Button type="button" className="mt-6 w-full" onClick={saveDograhConfiguration} disabled={isSavingDograh}>
+                            <Button type="button" className="mt-6 w-full" onClick={saveHaviAIConfiguration} disabled={isSavingHaviAI}>
                                 <Save className="mr-2 h-4 w-4" />
-                                {isSavingDograh ? "Saving..." : submitLabel}
+                                {isSavingHaviAI ? "Saving..." : submitLabel}
                             </Button>
                         </CardContent>
                     </Card>
@@ -576,7 +576,7 @@ export function AIModelConfigurationV2Editor({
                     <p className="mb-4 text-sm text-muted-foreground">
                         Configure separate transcriber, LLM, and voice providers using your own API keys. An embeddings model can also be configured for knowledge retrieval.
                     </p>
-                    <PricingSummary pricing={pricing} includeDograhModel={false} thirdPartyModels />
+                    <PricingSummary pricing={pricing} includeHaviAIModel={false} thirdPartyModels />
                     <ServiceConfigurationForm
                         key={`byok-${JSON.stringify(pipelineInitialConfig)}`}
                         mode="global"

@@ -21,8 +21,28 @@ export function LocalProviderWrapper({ children }: { children: React.ReactNode }
         if (response.ok) {
           const data = await response.json();
           tokenRef.current = data.token;
-          setUser(data.user);
-          logger.info('OSS auth initialized', { user: data.user });
+          
+          try {
+            const authUserRes = await fetch('/api/v1/user/auth/user', {
+              headers: { Authorization: `Bearer ${data.token}` }
+            });
+            if (authUserRes.ok) {
+              const authUserData = await authUserRes.json();
+              const updatedUser = {
+                ...data.user,
+                ...authUserData,
+                organizationId: authUserData.organization_id ? String(authUserData.organization_id) : data.user.organizationId
+              };
+              setUser(updatedUser);
+              logger.info('OSS auth initialized from backend', { user: updatedUser });
+            } else {
+              setUser(data.user);
+              logger.info('OSS auth initialized from cookie fallback', { user: data.user });
+            }
+          } catch (err) {
+            setUser(data.user);
+            logger.info('OSS auth initialized from cookie fallback (error)', { user: data.user });
+          }
         } else if (response.status === 401) {
           // No token - redirect to login (but not if already on auth pages)
           if (!window.location.pathname.startsWith('/auth/')) {

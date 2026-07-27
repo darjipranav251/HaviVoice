@@ -11,8 +11,8 @@ RUN apk add --no-cache python3 make g++ libc6-compat
 # Copy package files
 COPY ui/package*.json ./
 
-# Clean install with proper handling of native modules
-RUN --mount=type=cache,target=/root/.npm npm ci
+# Install dependencies (npm install handles cross-platform lock file differences)
+RUN --mount=type=cache,target=/root/.npm npm install
 
 # Stage 2: Builder
 FROM node:22-alpine AS builder
@@ -44,7 +44,7 @@ ENV BACKEND_URL="http://api:8000"
 
 # Build the application with standalone mode
 # Increase Node.js heap size to prevent out-of-memory errors during build
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build && \
     rm -rf /tmp/* /root/.npm /root/.next/cache
 

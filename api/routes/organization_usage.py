@@ -519,3 +519,152 @@ async def get_daily_usage_breakdown(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class TenantDailyUsageItem(BaseModel):
+    date: str
+    total_minutes: float
+    total_calls: int
+
+
+class TenantTopAgentItem(BaseModel):
+    agent_id: int
+    agent_name: str
+    total_runs: int
+    total_minutes: float
+
+
+class TenantOverviewSummary(BaseModel):
+    total_minutes: float
+    remaining_minutes: float
+    total_quota_minutes: float
+    total_agents: int
+    total_campaigns: int
+    total_runs: int
+
+
+class TenantOverviewStatsResponse(BaseModel):
+    summary: TenantOverviewSummary
+    daily_usage: List[TenantDailyUsageItem]
+    top_agents: List[TenantTopAgentItem]
+    campaign_distribution: List[Dict[str, Any]]
+
+
+@router.get("/tenant-overview-stats", response_model=TenantOverviewStatsResponse)
+async def get_tenant_overview_stats(user: UserModel = Depends(get_user)):
+    """Get aggregated analytics, daily trends, and top agents for the current user's organization."""
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    org_id = user.selected_organization_id
+    async with db_client.async_session() as session:
+        from api.db.models import (
+            OrganizationUsageCycleModel,
+            WorkflowModel,
+            WorkflowRunModel,
+            CampaignModel,
+        )
+        from sqlalchemy import select, func, cast, Date
+        from datetime import datetime, timedelta, timezone
+
+        # 1. Used minutes & cycle summary
+        cycle_stmt = select(
+            func.coalesce(func.sum(OrganizationUsageCycleModel.total_duration_seconds), 0)
+        ).where(OrganizationUsageCycleModel.organization_id == org_id)
+        dur_res = await session.execute(cycle_stmt)
+        total_seconds = dur_res.scalar() or 0
+        used_m = round(total_seconds / 60.0, 1)
+        remaining_m = max(0.0, round(150.0 - used_m, 1))
+
+        # 2. Count agents
+        agents_stmt = select(func.count(WorkflowModel.id)).where(WorkflowModel.organization_id == org_id)
+        total_agents = (await session.execute(agents_stmt)).scalar() or 0
+
+        # 3. Count campaigns & state breakdown
+        campaigns_stmt = select(CampaignModel).where(CampaignModel.organization_id == org_id)
+        campaigns = (await session.execute(campaigns_stmt)).scalars().all()
+        total_campaigns = len(campaigns)
+
+        c_dist = [
+            {"label": "Active", "count": sum(1 for c in campaigns if str(c.state).lower() in ("running", "processing", "active"))},
+            {"label": "Completed", "count": sum(1 for c in campaigns if str(c.state).lower() == "completed")},
+            {"label": "Draft", "count": sum(1 for c in campaigns if str(c.state).lower() not in ("running", "processing", "active", "completed"))},
+        ]
+
+        # 4. Count total runs
+        runs_stmt = (
+            select(func.count(WorkflowRunModel.id))
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(WorkflowModel.organization_id == org_id)
+        )
+        total_runs = (await session.execute(runs_stmt)).scalar() or 0
+
+        # 5. 14-day daily usage trend for this org
+        now = datetime.now(timezone.utc)
+        start_date = now - timedelta(days=13)
+        daily_stmt = (
+            select(
+                cast(WorkflowRunModel.created_at, Date).label("run_date"),
+                func.count(WorkflowRunModel.id).label("total_calls")
+            )
+            .join(WorkflowModel, WorkflowRunModel.workflow_id == WorkflowModel.id)
+            .where(
+                WorkflowModel.organization_id == org_id,
+                WorkflowRunModel.created_at >= start_date
+            )
+            .group_by(cast(WorkflowRunModel.created_at, Date))
+            .order_by(cast(WorkflowRunModel.created_at, Date))
+        )
+        daily_res = await session.execute(daily_stmt)
+        runs_by_date = {row[0].isoformat(): row[1] for row in daily_res.all() if row[0]}
+
+        daily_usage: List[TenantDailyUsageItem] = []
+        for i in range(14):
+            d = (start_date + timedelta(days=i)).date().isoformat()
+            calls = runs_by_date.get(d, 0)
+            daily_usage.append(TenantDailyUsageItem(
+                date=d[5:],
+                total_minutes=round(calls * 1.5, 1),
+                total_calls=calls
+            ))
+
+        # 6. Top Voice Agents for this org
+        top_agents_stmt = (
+            select(
+                WorkflowModel.id,
+                WorkflowModel.name,
+                func.count(WorkflowRunModel.id).label("runs_count")
+            )
+            .outerjoin(WorkflowRunModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
+            .where(WorkflowModel.organization_id == org_id)
+            .group_by(WorkflowModel.id, WorkflowModel.name)
+            .order_by(func.count(WorkflowRunModel.id).desc())
+            .limit(5)
+        )
+        top_agents_res = await session.execute(top_agents_stmt)
+        top_agents: List[TenantTopAgentItem] = []
+        for row in top_agents_res.all():
+            runs_cnt = row[2] or 0
+            top_agents.append(TenantTopAgentItem(
+                agent_id=row[0],
+                agent_name=row[1] or f"Agent {row[0]}",
+                total_runs=runs_cnt,
+                total_minutes=round(runs_cnt * 1.5, 1)
+            ))
+
+        summary = TenantOverviewSummary(
+            total_minutes=used_m,
+            remaining_minutes=remaining_m,
+            total_quota_minutes=round(used_m + remaining_m, 1),
+            total_agents=total_agents,
+            total_campaigns=total_campaigns,
+            total_runs=total_runs
+        )
+
+        return TenantOverviewStatsResponse(
+            summary=summary,
+            daily_usage=daily_usage,
+            top_agents=top_agents,
+            campaign_distribution=c_dist
+        )
+

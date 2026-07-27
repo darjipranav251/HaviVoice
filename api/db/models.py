@@ -151,6 +151,13 @@ class OrganizationModel(Base):
 
     price_per_second_usd = Column(Float, nullable=True)
 
+    # Billing & Trial
+    stripe_customer_id = Column(String, nullable=True, index=True)
+    stripe_subscription_id = Column(String, nullable=True, index=True)
+    stripe_subscription_status = Column(String, nullable=True)
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+    current_plan = Column(String, nullable=True)
+
     # Relationships
     users = relationship(
         "UserModel",

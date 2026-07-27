@@ -16,6 +16,16 @@ export default async function AfterSignInPage() {
     const user = await getServerUser();
     logger.debug('[AfterSignInPage] Got user:', { hasUser: !!user, userId: user?.id });
 
+    const isSuperuser = user && 'is_superuser' in user ? (user.is_superuser ?? false) : false;
+    if (isSuperuser) {
+        logger.debug('[AfterSignInPage] Redirecting superuser to /overview');
+        redirect('/overview');
+    }
+    if (user && !isSuperuser) {
+        logger.debug('[AfterSignInPage] Redirecting normal user to /overview');
+        redirect('/overview');
+    }
+
     if (authProvider === 'stack' && user && 'getAuthJson' in user) {
         logger.debug('[AfterSignInPage] Stack user detected, getting auth token...');
         const token = await user.getAuthJson();

@@ -34,6 +34,7 @@ async def require_local_auth() -> None:
         raise HTTPException(status_code=404, detail="Not found")
 
 
+
 async def get_user(
     authorization: Annotated[str | None, Header()] = None,
     x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,

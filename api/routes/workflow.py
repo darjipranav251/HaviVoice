@@ -20,7 +20,7 @@ from api.schemas.ai_model_configuration import OrganizationAIModelConfigurationV
 from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.sdk_expose import sdk_expose
-from api.services.auth.depends import get_user
+from api.services.auth.depends import get_user, get_superuser
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
     check_for_masked_keys_in_ai_model_configuration_v2,
@@ -69,7 +69,7 @@ from api.utils.recording_artifacts import (
     has_recording_track,
 )
 
-router = APIRouter(prefix="/workflow")
+router = APIRouter(prefix="/workflow", dependencies=[Depends(get_superuser)])
 
 
 class ValidateWorkflowResponse(BaseModel):

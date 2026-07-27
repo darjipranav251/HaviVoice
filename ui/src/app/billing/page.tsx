@@ -249,9 +249,9 @@ export default function BillingPage() {
         <div className="container mx-auto p-6 space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">Billing</h1>
+                    <h1 className="text-3xl font-bold mb-2">Billing & Subscription</h1>
                     <p className="text-muted-foreground">
-                        Credits, balance, and account usage for your organization.
+                        Manage your organization's subscription plan and billing details.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -259,13 +259,48 @@ export default function BillingPage() {
                         <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
                         Refresh
                     </Button>
-                    {canPurchaseCredits && (
-                        <Button onClick={handlePurchaseCredits} disabled={purchasing}>
-                            <CreditCard className="h-4 w-4 mr-2" />
-                            {purchasing ? "Opening..." : "Add Credits"}
-                        </Button>
-                    )}
                 </div>
+            </div>
+
+            {searchParams.get("lockout") === "true" && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30 mb-6">
+                    <div className="flex items-center gap-3">
+                        <Info className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        <p className="text-sm font-medium text-red-900 dark:text-red-200">
+                            Your trial has ended or your subscription is inactive. Please subscribe to continue using HaviAI.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-2">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardDescription>Subscription Status</CardDescription>
+                        <CardTitle className="text-3xl capitalize">
+                            {(auth.user as any)?.stripe_subscription_status || "No Subscription"}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground mt-2">
+                            {(auth.user as any)?.trial_ends_at 
+                                ? `Trial ends at: ${formatDate((auth.user as any).trial_ends_at)}` 
+                                : "No active trial."}
+                        </p>
+                        <Button className="mt-4 w-full" onClick={async () => {
+                            try {
+                                const res = await fetch("/api/v1/billing/checkout", { method: "POST", headers: { Authorization: `Bearer ${await auth.getAccessToken()}`} });
+                                const data = await res.json();
+                                if (data.url) window.location.href = data.url;
+                            } catch (e) {
+                                toast.error("Failed to start checkout session.");
+                            }
+                        }}>
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Manage Subscription
+                        </Button>
+                    </CardContent>
+                </Card>
             </div>
 
             {isOssMode && (
