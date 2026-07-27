@@ -32,7 +32,7 @@ import {
 import { useAppConfig } from "@/context/AppConfigContext";
 import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 import { useAuth } from "@/lib/auth";
-import { formatDateTime } from "@/lib/dateTime";
+import { formatDate, formatDateTime } from "@/lib/dateTime";
 
 const LEDGER_PAGE_SIZE = 50;
 
