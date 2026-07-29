@@ -467,6 +467,17 @@ class CampaignBreakdownItem(BaseModel):
     total_contacts: int
 
 
+class AppointmentBreakdownItem(BaseModel):
+    organization_id: int
+    email: str
+    total_appointments: int
+    upcoming_count: int
+    completed_count: int
+    no_show_count: int
+    no_show_rate: float
+    emergency_count: int
+
+
 class TenantBreakdownItem(BaseModel):
     organization_id: int
     email: str
@@ -478,7 +489,7 @@ class TenantBreakdownItem(BaseModel):
 
 @router.get("/overview-breakdown")
 async def get_overview_breakdown(
-    category: str = Query("usage", description="Category: usage, agents, campaigns, tenants"),
+    category: str = Query("usage", description="Category: usage, agents, campaigns, tenants, appointments"),
     user: UserModel = Depends(get_superuser)
 ):
     """Get detailed per-tenant breakdown for modal dialogs."""
@@ -489,6 +500,7 @@ async def get_overview_breakdown(
             WorkflowModel,
             WorkflowRunModel,
             CampaignModel,
+            AppointmentModel,
             UserModel,
             organization_users_association
         )
@@ -586,6 +598,31 @@ async def get_overview_breakdown(
                     active_campaigns=active_c,
                     completed_campaigns=completed_c,
                     total_contacts=total_targets
+                ))
+            return results
+
+        elif category == "appointments":
+            results: List[AppointmentBreakdownItem] = []
+            for org, email in org_rows:
+                apts_stmt = select(AppointmentModel).where(AppointmentModel.organization_id == org.id)
+                apts = (await session.execute(apts_stmt)).scalars().all()
+                
+                total_apts = len(apts)
+                upcoming_apts = sum(1 for a in apts if a.status == "upcoming")
+                completed_apts = sum(1 for a in apts if a.status == "completed")
+                no_show_apts = sum(1 for a in apts if a.status == "no_show")
+                emergency_apts = sum(1 for a in apts if a.is_emergency)
+                no_show_rate = round((no_show_apts / max(1, completed_apts + no_show_apts)) * 100.0, 1)
+
+                results.append(AppointmentBreakdownItem(
+                    organization_id=org.id,
+                    email=email or f"Org {org.id}",
+                    total_appointments=total_apts,
+                    upcoming_count=upcoming_apts,
+                    completed_count=completed_apts,
+                    no_show_count=no_show_apts,
+                    no_show_rate=no_show_rate,
+                    emergency_count=emergency_apts
                 ))
             return results
 

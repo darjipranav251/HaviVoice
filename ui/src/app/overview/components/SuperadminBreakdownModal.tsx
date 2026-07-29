@@ -1,22 +1,23 @@
 "use client";
 
+import { ArrowRight, Loader2, Megaphone, Search, TrendingUp, Users,Workflow } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Loader2, ArrowRight, TrendingUp, Workflow, Megaphone, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
-export type BreakdownCategory = "usage" | "agents" | "campaigns" | "tenants";
+export type BreakdownCategory = "usage" | "agents" | "campaigns" | "tenants" | "appointments";
 
 interface SuperadminBreakdownModalProps {
   open: boolean;

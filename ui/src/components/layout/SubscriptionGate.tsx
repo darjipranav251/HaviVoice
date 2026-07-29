@@ -21,7 +21,7 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
     }
 
     const localUser = user as LocalUser;
-    
+
     // Superusers skip billing enforcement
     if (localUser.is_superuser) {
       setIsLockedOut(false);
@@ -29,12 +29,12 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
     }
 
     const hasValidSubscription = localUser.stripe_subscription_status === "active" || localUser.stripe_subscription_status === "trialing";
-    
+
     let trialActive = false;
     if (localUser.trial_ends_at) {
       trialActive = new Date(localUser.trial_ends_at) > new Date();
     }
-    
+
     if (!trialActive && !hasValidSubscription) {
       setIsLockedOut(true);
       router.push("/billing?lockout=true");

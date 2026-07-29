@@ -21,7 +21,7 @@ export function LocalProviderWrapper({ children }: { children: React.ReactNode }
         if (response.ok) {
           const data = await response.json();
           tokenRef.current = data.token;
-          
+
           try {
             const authUserRes = await fetch('/api/v1/user/auth/user', {
               headers: { Authorization: `Bearer ${data.token}` }

@@ -1,8 +1,9 @@
 "use client";
 
+import { Loader2,Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Shield, Loader2 } from "lucide-react";
+
 import { useAuth } from "@/lib/auth";
 
 interface Tenant {

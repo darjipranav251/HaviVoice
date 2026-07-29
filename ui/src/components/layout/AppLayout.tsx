@@ -11,11 +11,11 @@ import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sideb
 import { PostHogEvent } from "@/constants/posthog-events";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
+import { useAuth } from "@/lib/auth";
 
 import { AdminModeBanner } from "./AdminModeBanner";
 import { AppSidebar } from "./AppSidebar";
 import { GitHubStarBadge } from "./GitHubStarBadge";
-import { useAuth } from "@/lib/auth";
 import { SubscriptionGate } from "./SubscriptionGate";
 
 function AppHeader() {
@@ -117,6 +117,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     if (!isSuperuser) {
       const allowedNormalPaths = [
         "/overview",
+        "/appointments",
         "/recordings",
         "/usage",
         "/billing",

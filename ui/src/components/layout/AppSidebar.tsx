@@ -5,6 +5,7 @@ import {
   ArrowUpCircle,
   AudioLines,
   Brain,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -28,7 +29,6 @@ import React from "react";
 
 import { BrandLogo } from "@/components/BrandLogo";
 import { SidebarTeamSwitcher } from "@/components/layout/SidebarTeamSwitcher";
-import { SuperadminTenantSwitcher } from "./SuperadminTenantSwitcher";
 import ThemeToggle from "@/components/ThemeSwitcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +61,8 @@ import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import type { LocalUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+
+import { SuperadminTenantSwitcher } from "./SuperadminTenantSwitcher";
 
 type SidebarNavItem = {
   title: string;
@@ -136,6 +138,11 @@ const NAV_SECTIONS: SidebarNavSection[] = [
     label: "MANAGE",
     items: [
       {
+        title: "Appointments",
+        url: "/appointments",
+        icon: Calendar,
+      },
+      {
         title: "Agent Runs",
         url: "/usage",
         icon: TrendingUp,
@@ -159,7 +166,7 @@ export function AppSidebar() {
   const router = useRouter();
   const { state, isMobile, setOpenMobile } = useSidebar();
   const { provider, logout, user } = useAuth();
-  
+
   // Extract is_superuser from LocalUser or AuthUser
   const isSuperuser = (user as LocalUser)?.is_superuser ?? false;
 
@@ -401,6 +408,7 @@ export function AppSidebar() {
           const visibleItems = section.items.filter((item) => {
             const allowedNormalPaths = [
               "/overview",
+              "/appointments",
               "/recordings",
               "/usage",
               "/billing",

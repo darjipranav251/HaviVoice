@@ -1,8 +1,9 @@
 "use client";
 
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Loader2 } from "lucide-react";
+
 import { useAuth } from "@/lib/auth";
 
 interface Tenant {
@@ -53,7 +54,7 @@ export function AdminModeBanner() {
         },
       });
       if (!res.ok) throw new Error("Failed to reset context");
-      
+
       const userRes = await fetch("/api/v1/user/auth/user", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -83,7 +84,7 @@ export function AdminModeBanner() {
 
   // Resolve current active tenant email
   const activeTenant = tenants.find(t => t.organization_id === currentOrgId);
-  
+
   // If active org belongs to another user (not the logged in superadmin), show banner
   const isViewingOtherTenant = activeTenant && activeTenant.email !== (user as any)?.email;
 

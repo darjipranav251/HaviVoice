@@ -276,8 +276,8 @@ export default function BillingPage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground mt-2">
-                            {(auth.user as any)?.trial_ends_at 
-                                ? `Trial ends at: ${formatDate((auth.user as any).trial_ends_at)}` 
+                            {(auth.user as any)?.trial_ends_at
+                                ? `Trial ends at: ${formatDate((auth.user as any).trial_ends_at)}`
                                 : "No active trial."}
                         </p>
                         <Button className="mt-4 w-full" onClick={async () => {

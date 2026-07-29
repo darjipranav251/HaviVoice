@@ -1455,3 +1455,38 @@ class KnowledgeBaseChunkModel(Base):
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
     )
+
+
+class AppointmentModel(Base):
+    __tablename__ = "appointments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id"), nullable=False, index=True
+    )
+    client_name = Column(String(255), nullable=False)
+    client_email = Column(String(255), nullable=True)
+    client_phone = Column(String(100), nullable=True)
+    title = Column(String(255), nullable=False, default="Appointment")
+    start_time = Column(DateTime(timezone=True), nullable=False, index=True)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    status = Column(
+        String(50), nullable=False, default="upcoming", index=True
+    )  # upcoming, completed, no_show, cancelled
+    is_emergency = Column(Boolean, default=False, nullable=False)
+    notes = Column(Text, nullable=True)
+    booking_uid = Column(String(255), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    organization = relationship("OrganizationModel")
+
+    __table_args__ = (
+        Index("ix_appointments_org_start", "organization_id", "start_time"),
+        Index("ix_appointments_org_status", "organization_id", "status"),
+    )
+

@@ -1,23 +1,24 @@
 "use client";
 
+import { BarChart3, Loader2, PieChart as PieIcon,TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
-  AreaChart,
   Area,
-  BarChart,
+  AreaChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from "recharts";
-import { Loader2, TrendingUp, BarChart3, PieChart as PieIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
+import { Card, CardContent, CardDescription,CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 
 interface DailyUsageItem {

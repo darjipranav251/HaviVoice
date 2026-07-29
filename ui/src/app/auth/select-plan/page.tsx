@@ -1,11 +1,9 @@
 "use client";
 
-import { Check, Crown, Sparkles, Zap, Infinity } from "lucide-react";
+import { Check, Crown, Infinity,Sparkles, Zap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { AuthEnterpriseCTA } from "@/components/auth/AuthEnterpriseCTA";
-import { AuthShell } from "@/components/auth/AuthShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

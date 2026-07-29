@@ -1,23 +1,38 @@
 "use client";
 
+import {
+  ArrowRight,
+  BarChart3,
+  Calendar,
+  Clock,
+  Flame,
+  Loader2,
+  Megaphone,
+  PieChart as PieIcon,
+  TrendingUp,
+  Workflow,
+} from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  AreaChart,
   Area,
-  BarChart,
+  AreaChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
 } from "recharts";
-import { Loader2, TrendingUp, BarChart3, PieChart as PieIcon, Workflow, Megaphone, Clock, CheckCircle2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription,CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 
 interface DailyUsageItem {
@@ -52,6 +67,27 @@ export interface TenantOverviewData {
   campaign_distribution: CampaignDistItem[];
 }
 
+interface AppointmentSummaryData {
+  total_appointments: number;
+  upcoming_count: number;
+  completed_count: number;
+  no_show_count: number;
+  no_show_rate: number;
+  emergency_count: number;
+  period_7days_count: number;
+  period_15days_count: number;
+  period_monthly_count: number;
+  upcoming_appointments: Array<{
+    id: number;
+    client_name: string;
+    client_phone?: string;
+    title: string;
+    start_time: string;
+    status: string;
+    is_emergency: boolean;
+  }>;
+}
+
 const PIE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#6b7280"];
 
 interface TenantChartsProps {
@@ -61,21 +97,29 @@ interface TenantChartsProps {
 export function TenantCharts({ onDataLoaded }: TenantChartsProps) {
   const { getAccessToken } = useAuth();
   const [data, setData] = useState<TenantOverviewData | null>(null);
+  const [aptSummary, setAptSummary] = useState<AppointmentSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchTenantData = async () => {
       try {
         const token = await getAccessToken();
-        const res = await fetch("/api/v1/organizations/tenant-overview-stats", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [res, aptRes] = await Promise.all([
+          fetch("/api/v1/organizations/tenant-overview-stats", { headers }),
+          fetch("/api/v1/appointments/summary", { headers }),
+        ]);
+
         if (res.ok) {
           const result: TenantOverviewData = await res.json();
           setData(result);
-          if (onDataLoaded) {
-            onDataLoaded(result);
-          }
+          if (onDataLoaded) onDataLoaded(result);
+        }
+
+        if (aptRes.ok) {
+          const aptData: AppointmentSummaryData = await aptRes.json();
+          setAptSummary(aptData);
         }
       } catch (err) {
         console.error("Error loading tenant overview stats:", err);
@@ -102,6 +146,7 @@ export function TenantCharts({ onDataLoaded }: TenantChartsProps) {
     <div className="space-y-6">
       {/* Metric Summary Cards */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Card 1: Call Usage */}
         <Card className="shadow-sm border-emerald-500/20 bg-emerald-500/5">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
@@ -119,6 +164,31 @@ export function TenantCharts({ onDataLoaded }: TenantChartsProps) {
           </CardContent>
         </Card>
 
+        {/* Card 2: Appointments & Bookings */}
+        <Card className="shadow-sm border-purple-500/20 bg-purple-500/5">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-purple-600 dark:text-purple-400">
+              Appointments
+            </CardTitle>
+            <Calendar className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline justify-between">
+              <div className="text-2xl font-bold">{aptSummary?.upcoming_count ?? 0} upcoming</div>
+              {aptSummary && aptSummary.emergency_count > 0 && (
+                <Badge variant="destructive" className="gap-1 text-[10px] animate-pulse">
+                  <Flame className="h-3 w-3" /> {aptSummary.emergency_count} urgent
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+              <span>{aptSummary?.total_appointments ?? 0} total booked</span>
+              <span className="text-amber-500 font-semibold">{aptSummary?.no_show_rate ?? 0}% no-show</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Voice Agents */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Voice Agents</CardTitle>
@@ -130,6 +200,7 @@ export function TenantCharts({ onDataLoaded }: TenantChartsProps) {
           </CardContent>
         </Card>
 
+        {/* Card 4: Campaigns */}
         <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Campaigns</CardTitle>
@@ -140,18 +211,71 @@ export function TenantCharts({ onDataLoaded }: TenantChartsProps) {
             <p className="text-xs text-muted-foreground mt-1">Outbound call campaigns</p>
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Runs</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+      {/* Upcoming Schedule Widget & Analytics Grid */}
+      {aptSummary && (
+        <Card className="shadow-sm border">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-cta" />
+                Upcoming Schedule & Bookings
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Next scheduled client appointments and high-priority bookings
+              </CardDescription>
+            </div>
+            <Button asChild size="sm" variant="ghost" className="text-xs gap-1 text-cta">
+              <Link href="/appointments">
+                View Calendar <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.summary.total_runs}</div>
-            <p className="text-xs text-muted-foreground mt-1">Executed call sessions</p>
+            {aptSummary.upcoming_appointments.length === 0 ? (
+              <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+                No upcoming appointments scheduled yet.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {aptSummary.upcoming_appointments.map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="flex flex-col justify-between rounded-lg border p-3 bg-card hover:bg-muted/10 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm flex items-center gap-1.5 truncate">
+                        {apt.is_emergency && <Flame className="h-3.5 w-3.5 text-red-500 animate-pulse shrink-0" />}
+                        {apt.client_name}
+                      </span>
+                      <Badge
+                        variant={apt.is_emergency ? "destructive" : "outline"}
+                        className="text-[10px] capitalize shrink-0"
+                      >
+                        {apt.is_emergency ? "Urgent" : apt.status}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(apt.start_time).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span className="truncate max-w-[110px] text-foreground font-medium">{apt.title}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-      </div>
+      )}
 
       {/* Visual Analytics Diagrams */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

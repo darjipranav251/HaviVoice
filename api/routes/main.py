@@ -31,6 +31,7 @@ from api.routes.workflow_embed import router as workflow_embed_router
 from api.routes.workflow_recording import router as workflow_recording_router
 from api.routes.workflow_text_chat import router as workflow_text_chat_router
 from api.routes.billing import router as billing_router
+from api.routes.appointments import router as appointments_router
 from api.services.integrations import all_routers
 
 router = APIRouter(
@@ -64,6 +65,7 @@ router.include_router(auth_router)
 router.include_router(node_types_router)
 router.include_router(agent_stream_router)
 router.include_router(billing_router)
+router.include_router(appointments_router)
 
 for _integration_router in all_routers():
     router.include_router(_integration_router)
