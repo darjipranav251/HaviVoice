@@ -183,7 +183,10 @@ export default function AppointmentsPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to create appointment");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to create appointment");
+      }
       toast.success("Appointment booked successfully!");
       setBookModalOpen(false);
       fetchAppointments();

@@ -61,6 +61,16 @@ class AppointmentsSummaryResponse(BaseModel):
     upcoming_appointments: List[AppointmentItemResponse]
 
 
+def resolve_org_id(req_org_id: Optional[int], user: UserModel) -> int:
+    if req_org_id:
+        return req_org_id
+    if getattr(user, "selected_organization_id", None):
+        return user.selected_organization_id
+    if getattr(user, "organizations", None) and len(user.organizations) > 0:
+        return user.organizations[0].id
+    return 1
+
+
 @router.get("", response_model=List[AppointmentItemResponse])
 async def get_appointments(
     status: Optional[str] = Query(None, description="Filter by status: upcoming, completed, no_show, cancelled"),
@@ -71,7 +81,7 @@ async def get_appointments(
 ):
     """Get appointments list. Supports superadmin global view and tenant-scoped view."""
     is_superuser = getattr(user, "is_superuser", False)
-    selected_org_id = user.selected_organization_id
+    selected_org_id = resolve_org_id(tenant_id, user)
 
     async with db_client.async_session() as session:
         query = select(AppointmentModel, OrganizationModel.name, OrganizationModel.email).outerjoin(
@@ -82,14 +92,7 @@ async def get_appointments(
         if is_superuser and tenant_id:
             query = query.where(AppointmentModel.organization_id == tenant_id)
         elif not is_superuser:
-            if not selected_org_id:
-                raise HTTPException(status_code=400, detail="No organization selected")
             query = query.where(AppointmentModel.organization_id == selected_org_id)
-        elif is_superuser and selected_org_id:
-            # Check if active org is a shifted tenant or global
-            all_orgs = (await session.execute(select(OrganizationModel.id))).scalars().all()
-            if selected_org_id in all_orgs:
-                query = query.where(AppointmentModel.organization_id == selected_org_id)
 
         # Apply status filter
         if status and status != "all":
@@ -156,9 +159,7 @@ async def book_appointment(
     user: UserModel = Depends(get_user),
 ):
     """Book a new appointment. Called by AI voice call HTTP tool or UI."""
-    org_id = req.organization_id or user.selected_organization_id
-    if not org_id:
-        raise HTTPException(status_code=400, detail="Organization ID is required")
+    org_id = resolve_org_id(req.organization_id, user)
 
     start_dt = req.start_time
     if not req.end_time:
@@ -218,7 +219,8 @@ async def update_appointment_status(
     async with db_client.async_session() as session:
         query = select(AppointmentModel).where(AppointmentModel.id == appointment_id)
         if not getattr(user, "is_superuser", False):
-            query = query.where(AppointmentModel.organization_id == user.selected_organization_id)
+            org_id = resolve_org_id(None, user)
+            query = query.where(AppointmentModel.organization_id == org_id)
 
         result = await session.execute(query)
         apt = result.scalar_one_or_none()
@@ -263,13 +265,11 @@ async def update_appointment_status(
 async def get_appointments_summary(user: UserModel = Depends(get_user)):
     """Get appointments summary stats for dashboard and header widgets."""
     is_superuser = getattr(user, "is_superuser", False)
-    selected_org_id = user.selected_organization_id
+    selected_org_id = resolve_org_id(None, user)
 
     async with db_client.async_session() as session:
         base_query = select(AppointmentModel)
         if not is_superuser:
-            if not selected_org_id:
-                raise HTTPException(status_code=400, detail="No organization selected")
             base_query = base_query.where(AppointmentModel.organization_id == selected_org_id)
 
         apts = (await session.execute(base_query)).scalars().all()

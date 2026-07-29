@@ -1,6 +1,7 @@
 "use client";
 
-import { BarChart3, Loader2, PieChart as PieIcon,TrendingUp } from "lucide-react";
+import { ArrowRight, BarChart3, Calendar, Clock, Flame, Loader2, PieChart as PieIcon, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Area,
@@ -18,7 +19,9 @@ import {
   YAxis,
 } from "recharts";
 
-import { Card, CardContent, CardDescription,CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 
 interface DailyUsageItem {
@@ -45,23 +48,52 @@ interface ChartData {
   subscription_distribution: StatusDistributionItem[];
 }
 
+interface AppointmentSummaryData {
+  total_appointments: number;
+  upcoming_count: number;
+  completed_count: number;
+  no_show_count: number;
+  no_show_rate: number;
+  emergency_count: number;
+  upcoming_appointments: Array<{
+    id: number;
+    client_name: string;
+    client_phone?: string;
+    title: string;
+    start_time: string;
+    status: string;
+    is_emergency: boolean;
+    organization_name?: string;
+  }>;
+}
+
 const PIE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 export function SuperadminCharts() {
   const { getAccessToken } = useAuth();
   const [data, setData] = useState<ChartData | null>(null);
+  const [aptSummary, setAptSummary] = useState<AppointmentSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchChartsData = async () => {
       try {
         const token = await getAccessToken();
-        const res = await fetch("/api/v1/superuser/overview-charts", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [res, aptRes] = await Promise.all([
+          fetch("/api/v1/superuser/overview-charts", { headers }),
+          fetch("/api/v1/appointments/summary", { headers }),
+        ]);
+
         if (res.ok) {
           const result = await res.json();
           setData(result);
+        }
+
+        if (aptRes.ok) {
+          const aptData = await aptRes.json();
+          setAptSummary(aptData);
         }
       } catch (err) {
         console.error("Error loading overview charts:", err);
@@ -235,6 +267,72 @@ export function SuperadminCharts() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Widget 4: Upcoming Schedule & System Bookings */}
+      {aptSummary && (
+        <Card className="lg:col-span-3 shadow-sm border">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-purple-500" />
+                Upcoming Schedule & System Bookings
+              </CardTitle>
+              <CardDescription className="text-xs">
+                System-wide upcoming client appointments across all tenant organizations
+              </CardDescription>
+            </div>
+            <Button asChild size="sm" variant="ghost" className="text-xs gap-1 text-purple-500">
+              <Link href="/appointments">
+                View Calendar Console <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {aptSummary.upcoming_appointments.length === 0 ? (
+              <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
+                No upcoming system appointments scheduled yet.
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {aptSummary.upcoming_appointments.map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="flex flex-col justify-between rounded-lg border p-3 bg-card hover:bg-muted/10 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm flex items-center gap-1.5 truncate">
+                        {apt.is_emergency && <Flame className="h-3.5 w-3.5 text-red-500 animate-pulse shrink-0" />}
+                        {apt.client_name}
+                      </span>
+                      <Badge
+                        variant={apt.is_emergency ? "destructive" : "outline"}
+                        className="text-[10px] capitalize shrink-0"
+                      >
+                        {apt.is_emergency ? "Urgent" : apt.status}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {new Date(apt.start_time).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span className="truncate max-w-[120px] text-foreground font-medium">
+                        {apt.organization_name ? apt.organization_name : apt.title}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

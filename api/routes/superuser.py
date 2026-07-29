@@ -285,13 +285,15 @@ class SuperuserOverviewStatsResponse(BaseModel):
     total_agents: int
     total_campaigns: int
     total_tenants: int
+    total_appointments: int = 0
+    emergency_appointments: int = 0
 
 
 @router.get("/overview-stats", response_model=SuperuserOverviewStatsResponse)
 async def get_overview_stats(user: UserModel = Depends(get_superuser)):
     """Get aggregated system-wide statistics for the superadmin dashboard."""
     async with db_client.async_session() as session:
-        from api.db.models import OrganizationUsageCycleModel, WorkflowModel, CampaignModel, OrganizationModel
+        from api.db.models import OrganizationUsageCycleModel, WorkflowModel, CampaignModel, OrganizationModel, AppointmentModel
         from sqlalchemy import select, func
 
         # Sum total duration in seconds from current cycles
@@ -315,11 +317,20 @@ async def get_overview_stats(user: UserModel = Depends(get_superuser)):
         tenants_res = await session.execute(tenants_stmt)
         total_tenants = tenants_res.scalar() or 0
 
+        # Count total appointments and emergency appointments
+        apts_stmt = select(func.count(AppointmentModel.id))
+        apts_cnt = (await session.execute(apts_stmt)).scalar() or 0
+
+        em_stmt = select(func.count(AppointmentModel.id)).where(AppointmentModel.is_emergency == True)
+        em_cnt = (await session.execute(em_stmt)).scalar() or 0
+
         return SuperuserOverviewStatsResponse(
             total_minutes=total_minutes,
             total_agents=total_agents,
             total_campaigns=total_campaigns,
-            total_tenants=total_tenants
+            total_tenants=total_tenants,
+            total_appointments=apts_cnt,
+            emergency_appointments=em_cnt,
         )
 
 

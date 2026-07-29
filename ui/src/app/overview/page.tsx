@@ -2,6 +2,8 @@
 
 import {
   ArrowRight,
+  Calendar,
+  Flame,
   Loader2,
   Megaphone,
   Search,
@@ -41,6 +43,8 @@ interface Stats {
   total_agents: number;
   total_campaigns: number;
   total_tenants: number;
+  total_appointments?: number;
+  emergency_appointments?: number;
 }
 
 export default function OverviewPage() {
@@ -185,7 +189,7 @@ export default function OverviewPage() {
         ) : (
           <>
             {/* Clickable Metric Cards */}
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
               <Card
                 onClick={() => {
                   setSelectedCategory("usage");
@@ -204,9 +208,43 @@ export default function OverviewPage() {
                     {stats?.total_minutes.toLocaleString()} min
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                    <span>System-wide call duration</span>
+                    <span>System-wide duration</span>
                     <span className="text-[10px] text-cta opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
-                      Click for breakdown &rarr;
+                      Breakdown &rarr;
+                    </span>
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card
+                onClick={() => {
+                  setSelectedCategory("appointments");
+                  setModalOpen(true);
+                }}
+                className="cursor-pointer transition-all border-purple-500/30 bg-purple-500/5 hover:border-purple-500 hover:shadow-md group relative overflow-hidden"
+              >
+                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                  <CardTitle className="text-sm font-medium text-purple-600 dark:text-purple-400 group-hover:text-purple-500 transition-colors">
+                    Appointments
+                  </CardTitle>
+                  <Calendar className="h-4 w-4 text-purple-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {stats?.total_appointments ?? 0} booked
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      {stats?.emergency_appointments ? (
+                        <span className="text-red-500 font-semibold flex items-center gap-0.5">
+                          <Flame className="h-3 w-3 animate-pulse" /> {stats.emergency_appointments} urgent
+                        </span>
+                      ) : (
+                        "System bookings"
+                      )}
+                    </span>
+                    <span className="text-[10px] text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
+                      Breakdown &rarr;
                     </span>
                   </p>
                 </CardContent>
@@ -228,9 +266,9 @@ export default function OverviewPage() {
                 <CardContent>
                   <div className="text-2xl font-bold">{stats?.total_agents}</div>
                   <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                    <span>Active workflows configured</span>
+                    <span>Active workflows</span>
                     <span className="text-[10px] text-cta opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
-                      Click for breakdown &rarr;
+                      Breakdown &rarr;
                     </span>
                   </p>
                 </CardContent>
@@ -252,9 +290,9 @@ export default function OverviewPage() {
                 <CardContent>
                   <div className="text-2xl font-bold">{stats?.total_campaigns}</div>
                   <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                    <span>Outbound call campaigns</span>
+                    <span>Outbound campaigns</span>
                     <span className="text-[10px] text-cta opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
-                      Click for breakdown &rarr;
+                      Breakdown &rarr;
                     </span>
                   </p>
                 </CardContent>
@@ -276,9 +314,9 @@ export default function OverviewPage() {
                 <CardContent>
                   <div className="text-2xl font-bold">{stats?.total_tenants}</div>
                   <p className="text-xs text-muted-foreground mt-1 flex items-center justify-between">
-                    <span>Total user accounts</span>
+                    <span>Total accounts</span>
                     <span className="text-[10px] text-cta opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
-                      Click for breakdown &rarr;
+                      Breakdown &rarr;
                     </span>
                   </p>
                 </CardContent>
