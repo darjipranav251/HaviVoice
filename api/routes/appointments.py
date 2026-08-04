@@ -6,7 +6,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Date, and_, cast, func, or_, select
 
 from api.db import db_client
-from api.db.models import AppointmentModel, OrganizationModel, UserModel
+from api.db.models import (
+    AppointmentModel,
+    OrganizationModel,
+    UserModel,
+    organization_users_association,
+)
 from api.services.auth.depends import get_user
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
@@ -84,14 +89,21 @@ async def get_appointments(
     selected_org_id = resolve_org_id(tenant_id, user)
 
     async with db_client.async_session() as session:
-        query = select(AppointmentModel, OrganizationModel.name, OrganizationModel.email).outerjoin(
-            OrganizationModel, AppointmentModel.organization_id == OrganizationModel.id
+        query = (
+            select(AppointmentModel, UserModel.email)
+            .outerjoin(
+                organization_users_association,
+                AppointmentModel.organization_id == organization_users_association.c.organization_id,
+            )
+            .outerjoin(UserModel, organization_users_association.c.user_id == UserModel.id)
         )
 
         # Scoping logic
-        if is_superuser and tenant_id:
-            query = query.where(AppointmentModel.organization_id == tenant_id)
-        elif not is_superuser:
+        if is_superuser:
+            if tenant_id:
+                query = query.where(AppointmentModel.organization_id == tenant_id)
+            # If no tenant_id is specified, superuser sees ALL appointments across all tenants!
+        else:
             query = query.where(AppointmentModel.organization_id == selected_org_id)
 
         # Apply status filter
@@ -128,8 +140,9 @@ async def get_appointments(
         appointments: List[AppointmentItemResponse] = []
         for row in result.all():
             apt: AppointmentModel = row[0]
-            org_name = row[1]
-            org_email = row[2]
+            org_email = row[1]
+            org_name = org_email.split("@")[0] if org_email else f"Org {apt.organization_id}"
+
             appointments.append(
                 AppointmentItemResponse(
                     id=apt.id,
@@ -184,11 +197,18 @@ async def book_appointment(
         await session.commit()
         await session.refresh(new_apt)
 
-        org_stmt = select(OrganizationModel.name, OrganizationModel.email).where(
-            OrganizationModel.id == org_id
+        org_stmt = (
+            select(UserModel.email)
+            .join(
+                organization_users_association,
+                UserModel.id == organization_users_association.c.user_id,
+            )
+            .where(organization_users_association.c.organization_id == org_id)
+            .limit(1)
         )
         org_res = await session.execute(org_stmt)
-        org_row = org_res.first()
+        org_email = org_res.scalar_one_or_none()
+        org_name = org_email.split("@")[0] if org_email else f"Org {org_id}"
 
         return AppointmentItemResponse(
             id=new_apt.id,
@@ -203,8 +223,8 @@ async def book_appointment(
             is_emergency=new_apt.is_emergency,
             notes=new_apt.notes,
             booking_uid=new_apt.booking_uid,
-            organization_name=org_row[0] if org_row else None,
-            organization_email=org_row[1] if org_row else None,
+            organization_name=org_name,
+            organization_email=org_email,
             created_at=new_apt.created_at.isoformat(),
         )
 
@@ -237,10 +257,18 @@ async def update_appointment_status(
         await session.commit()
         await session.refresh(apt)
 
-        org_stmt = select(OrganizationModel.name, OrganizationModel.email).where(
-            OrganizationModel.id == apt.organization_id
+        org_stmt = (
+            select(UserModel.email)
+            .join(
+                organization_users_association,
+                UserModel.id == organization_users_association.c.user_id,
+            )
+            .where(organization_users_association.c.organization_id == apt.organization_id)
+            .limit(1)
         )
-        org_row = (await session.execute(org_stmt)).first()
+        org_res = await session.execute(org_stmt)
+        org_email = org_res.scalar_one_or_none()
+        org_name = org_email.split("@")[0] if org_email else f"Org {apt.organization_id}"
 
         return AppointmentItemResponse(
             id=apt.id,
@@ -255,8 +283,8 @@ async def update_appointment_status(
             is_emergency=apt.is_emergency,
             notes=apt.notes,
             booking_uid=apt.booking_uid,
-            organization_name=org_row[0] if org_row else None,
-            organization_email=org_row[1] if org_row else None,
+            organization_name=org_name,
+            organization_email=org_email,
             created_at=apt.created_at.isoformat(),
         )
 
@@ -298,10 +326,19 @@ async def get_appointments_summary(user: UserModel = Depends(get_user)):
 
         upcoming_responses: List[AppointmentItemResponse] = []
         for apt in upcoming_top5:
-            org_stmt = select(OrganizationModel.name, OrganizationModel.email).where(
-                OrganizationModel.id == apt.organization_id
+            org_stmt = (
+                select(UserModel.email)
+                .join(
+                    organization_users_association,
+                    UserModel.id == organization_users_association.c.user_id,
+                )
+                .where(organization_users_association.c.organization_id == apt.organization_id)
+                .limit(1)
             )
-            org_row = (await session.execute(org_stmt)).first()
+            org_res = await session.execute(org_stmt)
+            org_email = org_res.scalar_one_or_none()
+            org_name = org_email.split("@")[0] if org_email else f"Org {apt.organization_id}"
+
             upcoming_responses.append(
                 AppointmentItemResponse(
                     id=apt.id,
@@ -316,8 +353,8 @@ async def get_appointments_summary(user: UserModel = Depends(get_user)):
                     is_emergency=apt.is_emergency,
                     notes=apt.notes,
                     booking_uid=apt.booking_uid,
-                    organization_name=org_row[0] if org_row else None,
-                    organization_email=org_row[1] if org_row else None,
+                    organization_name=org_name,
+                    organization_email=org_email,
                     created_at=apt.created_at.isoformat(),
                 )
             )
@@ -345,7 +382,8 @@ async def delete_appointment(
     async with db_client.async_session() as session:
         query = select(AppointmentModel).where(AppointmentModel.id == appointment_id)
         if not getattr(user, "is_superuser", False):
-            query = query.where(AppointmentModel.organization_id == user.selected_organization_id)
+            org_id = resolve_org_id(None, user)
+            query = query.where(AppointmentModel.organization_id == org_id)
 
         result = await session.execute(query)
         apt = result.scalar_one_or_none()

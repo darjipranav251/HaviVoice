@@ -218,8 +218,7 @@ export default function OverviewPage() {
 
               <Card
                 onClick={() => {
-                  setSelectedCategory("appointments");
-                  setModalOpen(true);
+                  router.push("/appointments");
                 }}
                 className="cursor-pointer transition-all border-purple-500/30 bg-purple-500/5 hover:border-purple-500 hover:shadow-md group relative overflow-hidden"
               >
@@ -244,7 +243,7 @@ export default function OverviewPage() {
                       )}
                     </span>
                     <span className="text-[10px] text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
-                      Breakdown &rarr;
+                      View Calendar &rarr;
                     </span>
                   </p>
                 </CardContent>

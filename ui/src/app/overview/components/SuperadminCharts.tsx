@@ -295,12 +295,13 @@ export function SuperadminCharts() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {aptSummary.upcoming_appointments.map((apt) => (
-                  <div
+                  <Link
                     key={apt.id}
-                    className="flex flex-col justify-between rounded-lg border p-3 bg-card hover:bg-muted/10 transition-colors"
+                    href="/appointments"
+                    className="flex flex-col justify-between rounded-lg border p-3 bg-card hover:bg-muted/20 hover:border-purple-500/50 transition-all cursor-pointer group"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm flex items-center gap-1.5 truncate">
+                      <span className="font-semibold text-sm flex items-center gap-1.5 truncate group-hover:text-purple-500 transition-colors">
                         {apt.is_emergency && <Flame className="h-3.5 w-3.5 text-red-500 animate-pulse shrink-0" />}
                         {apt.client_name}
                       </span>
@@ -326,7 +327,7 @@ export function SuperadminCharts() {
                         {apt.organization_name ? apt.organization_name : apt.title}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
