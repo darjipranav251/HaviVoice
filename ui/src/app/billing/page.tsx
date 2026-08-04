@@ -8,11 +8,14 @@ import {
     ExternalLink,
     Info,
     RefreshCw,
+    Shield,
+    Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { SuperadminBillingManager } from "../superadmin/components/SuperadminBillingManager";
 
 import { createMpsCreditPurchaseUrlApiV1OrganizationsUsageMpsCreditsPurchaseUrlPost, getBillingCreditsApiV1OrganizationsBillingCreditsGet } from "@/client/sdk.gen";
 import type { MpsBillingCreditsResponse, MpsCreditLedgerEntryResponse } from "@/client/types.gen";
@@ -114,6 +117,9 @@ export default function BillingPage() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [purchasing, setPurchasing] = useState(false);
+    const [showSuperadminBillingModal, setShowSuperadminBillingModal] = useState(false);
+    const isSuperuser = (auth.user as any)?.is_superuser ?? false;
+    const activeOrgId = (auth.user as any)?.selected_organization_id ?? (auth.user as any)?.organization_id;
     const [currentPage, setCurrentPage] = useState(
         () => getPageFromSearchParams(searchParams),
     );
@@ -267,12 +273,20 @@ export default function BillingPage() {
             )}
 
             <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>Subscription Status</CardDescription>
-                        <CardTitle className="text-3xl capitalize">
-                            {(auth.user as any)?.stripe_subscription_status || "No Subscription"}
-                        </CardTitle>
+                <Card className={isSuperuser ? "border-purple-500/30 bg-purple-500/5 dark:bg-purple-950/10 shadow-sm" : ""}>
+                    <CardHeader className="pb-2 flex flex-row items-start justify-between">
+                        <div>
+                            <CardDescription>Subscription Status</CardDescription>
+                            <CardTitle className="text-3xl capitalize flex items-center gap-2">
+                                {(auth.user as any)?.stripe_subscription_status || "No Subscription"}
+                            </CardTitle>
+                        </div>
+                        {isSuperuser && (
+                            <Badge className="bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30 gap-1">
+                                <Shield className="h-3 w-3" />
+                                Superadmin Mode
+                            </Badge>
+                        )}
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground mt-2">
@@ -280,18 +294,28 @@ export default function BillingPage() {
                                 ? `Trial ends at: ${formatDate((auth.user as any).trial_ends_at)}`
                                 : "No active trial."}
                         </p>
-                        <Button className="mt-4 w-full" onClick={async () => {
-                            try {
-                                const res = await fetch("/api/v1/billing/checkout", { method: "POST", headers: { Authorization: `Bearer ${await auth.getAccessToken()}`} });
-                                const data = await res.json();
-                                if (data.url) window.location.href = data.url;
-                            } catch (e) {
-                                toast.error("Failed to start checkout session.");
-                            }
-                        }}>
-                            <CreditCard className="h-4 w-4 mr-2" />
-                            Manage Subscription
-                        </Button>
+                        {isSuperuser ? (
+                            <Button
+                                className="mt-4 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold shadow-md transition-all duration-200 gap-2"
+                                onClick={() => setShowSuperadminBillingModal(true)}
+                            >
+                                <Sparkles className="h-4 w-4" />
+                                Manage Subscription & User Billing
+                            </Button>
+                        ) : (
+                            <Button className="mt-4 w-full" onClick={async () => {
+                                try {
+                                    const res = await fetch("/api/v1/billing/checkout", { method: "POST", headers: { Authorization: `Bearer ${await auth.getAccessToken()}`} });
+                                    const data = await res.json();
+                                    if (data.url) window.location.href = data.url;
+                                } catch (e) {
+                                    toast.error("Failed to start checkout session.");
+                                }
+                            }}>
+                                <CreditCard className="h-4 w-4 mr-2" />
+                                Manage Subscription
+                            </Button>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -473,6 +497,16 @@ export default function BillingPage() {
                         </div>
                     </CardContent>
                 </Card>
+            )}
+
+            {isSuperuser && (
+                <div className="mt-8 pt-6 border-t border-purple-500/20">
+                    <SuperadminBillingManager
+                        activeOrgId={activeOrgId}
+                        autoOpenActiveOrgModal={showSuperadminBillingModal}
+                        onModalClosed={() => setShowSuperadminBillingModal(false)}
+                    />
+                </div>
             )}
         </div>
     );

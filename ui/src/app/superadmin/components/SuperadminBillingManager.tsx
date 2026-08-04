@@ -29,7 +29,13 @@ export interface TenantBillingDetails {
   created_at: string;
 }
 
-export function SuperadminBillingManager() {
+interface SuperadminBillingManagerProps {
+  activeOrgId?: number | null;
+  autoOpenActiveOrgModal?: boolean;
+  onModalClosed?: () => void;
+}
+
+export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, onModalClosed }: SuperadminBillingManagerProps = {}) {
   const { getAccessToken } = useAuth();
   const [tenants, setTenants] = useState<TenantBillingDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,8 +64,15 @@ export function SuperadminBillingManager() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        const data = await res.json();
+        const data: TenantBillingDetails[] = await res.json();
         setTenants(data);
+
+        if (autoOpenActiveOrgModal && data.length > 0) {
+          const target = activeOrgId ? data.find((t) => t.organization_id === activeOrgId) || data[0] : data[0];
+          if (target) {
+            handleOpenEdit(target);
+          }
+        }
       } else {
         toast.error("Failed to load user billing records");
       }
@@ -74,6 +87,15 @@ export function SuperadminBillingManager() {
   useEffect(() => {
     fetchTenantsBilling();
   }, [getAccessToken]);
+
+  useEffect(() => {
+    if (autoOpenActiveOrgModal && tenants.length > 0) {
+      const target = activeOrgId ? tenants.find((t) => t.organization_id === activeOrgId) || tenants[0] : tenants[0];
+      if (target) {
+        handleOpenEdit(target);
+      }
+    }
+  }, [autoOpenActiveOrgModal, activeOrgId, tenants]);
 
   const handleOpenEdit = (tenant: TenantBillingDetails) => {
     setEditingTenant(tenant);
@@ -274,7 +296,7 @@ export function SuperadminBillingManager() {
       </CardContent>
 
       {/* Edit Tenant Billing Dialog */}
-      <Dialog open={!!editingTenant} onOpenChange={(open) => !open && setEditingTenant(null)}>
+      <Dialog open={!!editingTenant} onOpenChange={(open) => { if (!open) { setEditingTenant(null); onModalClosed?.(); } }}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl font-bold">
