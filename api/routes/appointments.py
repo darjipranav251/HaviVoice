@@ -69,10 +69,9 @@ class AppointmentsSummaryResponse(BaseModel):
 def resolve_org_id(req_org_id: Optional[int], user: UserModel) -> int:
     if req_org_id:
         return req_org_id
-    if getattr(user, "selected_organization_id", None):
-        return user.selected_organization_id
-    if getattr(user, "organizations", None) and len(user.organizations) > 0:
-        return user.organizations[0].id
+    selected_org = getattr(user, "selected_organization_id", None)
+    if selected_org:
+        return selected_org
     return 1
 
 
@@ -101,9 +100,13 @@ async def get_appointments(
         # Scoping logic:
         if tenant_id:
             query = query.where(AppointmentModel.organization_id == tenant_id)
-        elif not is_superuser:
+        elif is_superuser:
+            user_selected_org = getattr(user, "selected_organization_id", None)
+            if user_selected_org is not None:
+                query = query.where(AppointmentModel.organization_id == user_selected_org)
+            # Otherwise (global superuser mode), show all appointments across all tenants!
+        else:
             query = query.where(AppointmentModel.organization_id == selected_org_id)
-        # If superuser and no tenant_id is specified, superuser sees ALL appointments across all tenants!
 
         # Apply status filter
         if status and status != "all":
@@ -296,7 +299,11 @@ async def get_appointments_summary(user: UserModel = Depends(get_user)):
 
     async with db_client.async_session() as session:
         base_query = select(AppointmentModel)
-        if not is_superuser:
+        if is_superuser:
+            user_selected_org = getattr(user, "selected_organization_id", None)
+            if user_selected_org is not None:
+                base_query = base_query.where(AppointmentModel.organization_id == user_selected_org)
+        else:
             base_query = base_query.where(AppointmentModel.organization_id == selected_org_id)
 
         apts = (await session.execute(base_query)).scalars().all()
