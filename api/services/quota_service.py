@@ -24,6 +24,8 @@ from api.services.managed_model_services import (
 )
 from api.services.mps_service_key_client import mps_service_key_client
 
+from api.services.billing_guard import is_subscription_active_for_org
+
 MINIMUM_DOGRAH_CREDITS_FOR_CALL = 0.10
 
 _MPS_UNREACHABLE_ERRORS = (
@@ -590,6 +592,21 @@ async def authorize_workflow_run_start(
             has_quota=False,
             error_code="workflow_not_found",
             error_message="Workflow not found",
+        )
+
+    # Check subscription status for organization
+    org = await db_client.get_organization_by_id(organization_id)
+    is_active, inactive_reason = is_subscription_active_for_org(org, user=actor_user)
+    if not is_active:
+        logger.warning(
+            "Workflow start authorization denied for org {}: {}",
+            organization_id,
+            inactive_reason,
+        )
+        return QuotaCheckResult(
+            has_quota=False,
+            error_code="subscription_inactive",
+            error_message=inactive_reason,
         )
 
     try:

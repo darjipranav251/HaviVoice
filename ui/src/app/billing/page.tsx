@@ -264,9 +264,9 @@ export default function BillingPage() {
             {searchParams.get("lockout") === "true" && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30 mb-6">
                     <div className="flex items-center gap-3">
-                        <Info className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        <Info className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
                         <p className="text-sm font-medium text-red-900 dark:text-red-200">
-                            Your trial has ended or your subscription is inactive. Please subscribe to continue using HaviAI.
+                            Your subscription is currently <strong>unpaid, inactive, or past due</strong>. Full system access (making/receiving calls, booking appointments, and workflow runs) is restricted until subscription is updated.
                         </p>
                     </div>
                 </div>

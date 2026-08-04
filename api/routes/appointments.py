@@ -13,6 +13,7 @@ from api.db.models import (
     organization_users_association,
 )
 from api.services.auth.depends import get_user
+from api.services.billing_guard import is_subscription_active_for_org
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -176,7 +177,11 @@ async def book_appointment(
     """Book a new appointment. Called by AI voice call HTTP tool or UI."""
     org_id = resolve_org_id(req.organization_id, user)
 
-    start_dt = req.start_time
+    async with db_client.async_session() as session:
+        org = await session.get(OrganizationModel, org_id)
+        is_active, inactive_reason = is_subscription_active_for_org(org, user=user)
+        if not is_active:
+            raise HTTPException(status_code=402, detail=inactive_reason)
     if not req.end_time:
         end_dt = start_dt + timedelta(minutes=30)
     else:

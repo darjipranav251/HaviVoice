@@ -28,14 +28,17 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const hasValidSubscription = localUser.stripe_subscription_status === "active" || localUser.stripe_subscription_status === "trialing";
+    const status = (localUser.stripe_subscription_status || "").toLowerCase();
+    const isExplicitlyInactive = ["unpaid", "inactive", "past_due", "canceled", "cancelled", "expired"].includes(status);
+
+    const hasValidSubscription = (status === "active" || status === "trialing" || status === "manual") && !isExplicitlyInactive;
 
     let trialActive = false;
     if (localUser.trial_ends_at) {
       trialActive = new Date(localUser.trial_ends_at) > new Date();
     }
 
-    if (!trialActive && !hasValidSubscription) {
+    if (isExplicitlyInactive || (!trialActive && !hasValidSubscription)) {
       setIsLockedOut(true);
       router.push("/billing?lockout=true");
     } else {
