@@ -101,13 +101,9 @@ async def get_appointments(
         # Scoping logic:
         if tenant_id:
             query = query.where(AppointmentModel.organization_id == tenant_id)
-        elif is_superuser:
-            user_selected_org = getattr(user, "selected_organization_id", None)
-            if user_selected_org is not None:
-                query = query.where(AppointmentModel.organization_id == user_selected_org)
-            # Otherwise (global superuser mode), show all appointments across all tenants!
-        else:
+        elif not is_superuser:
             query = query.where(AppointmentModel.organization_id == selected_org_id)
+        # If superuser and no tenant_id is specified, superuser sees ALL appointments across all tenants!
 
         # Apply status filter
         if status and status != "all":

@@ -99,6 +99,13 @@ export default function AppointmentsPage() {
     notes: "",
   });
 
+  // Synchronize selected tenant when user switches organization context
+  useEffect(() => {
+    if (userSelectedOrg) {
+      setSelectedTenantId(String(userSelectedOrg));
+    }
+  }, [userSelectedOrg]);
+
   // Fetch tenants for superuser filter
   useEffect(() => {
     if (!isSuperuser) return;
@@ -142,13 +149,16 @@ export default function AppointmentsPage() {
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to fetch appointments");
+        console.error("Fetch appointments failed:", res.status, errorData);
+        setAppointments([]);
+        setLoading(false);
+        return;
       }
       const data = await res.json();
       setAppointments(data);
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "Error loading appointments");
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -436,6 +446,78 @@ export default function AppointmentsPage() {
             </div>
           ) : (
             <div className="fullcalendar-wrapper">
+              <style jsx global>{`
+                .fullcalendar-wrapper .fc {
+                  --fc-border-color: var(--border, rgba(255, 255, 255, 0.15));
+                  --fc-page-bg-color: transparent;
+                  --fc-neutral-bg-color: rgba(255, 255, 255, 0.05);
+                  font-family: inherit;
+                }
+                .fullcalendar-wrapper .fc-toolbar-title {
+                  font-size: 1.25rem !important;
+                  font-weight: 700 !important;
+                  color: var(--foreground, #ffffff) !important;
+                }
+                .fullcalendar-wrapper .fc-col-header-cell-cushion {
+                  color: var(--foreground, #ffffff) !important;
+                  font-weight: 600 !important;
+                  padding: 8px !important;
+                  text-decoration: none !important;
+                }
+                .fullcalendar-wrapper .fc-daygrid-day-number {
+                  color: var(--muted-foreground, #a1a1aa) !important;
+                  text-decoration: none !important;
+                  font-size: 0.85rem !important;
+                  padding: 4px 8px !important;
+                }
+                .fullcalendar-wrapper .fc-theme-standard td,
+                .fullcalendar-wrapper .fc-theme-standard th,
+                .fullcalendar-wrapper .fc-theme-standard .fc-scrollgrid {
+                  border-color: rgba(140, 140, 160, 0.25) !important;
+                }
+                .dark .fullcalendar-wrapper .fc-theme-standard td,
+                .dark .fullcalendar-wrapper .fc-theme-standard th,
+                .dark .fullcalendar-wrapper .fc-theme-standard .fc-scrollgrid {
+                  border-color: rgba(255, 255, 255, 0.15) !important;
+                }
+                .fullcalendar-wrapper .fc-button-primary {
+                  background-color: rgba(140, 140, 160, 0.15) !important;
+                  border-color: rgba(140, 140, 160, 0.25) !important;
+                  color: var(--foreground, #ffffff) !important;
+                  font-weight: 500 !important;
+                  border-radius: 0.375rem !important;
+                  text-transform: capitalize !important;
+                  transition: all 0.2s ease !important;
+                }
+                .fullcalendar-wrapper .fc-button-primary:hover {
+                  background-color: rgba(168, 85, 247, 0.2) !important;
+                  border-color: rgba(168, 85, 247, 0.5) !important;
+                  color: #a855f7 !important;
+                }
+                .fullcalendar-wrapper .fc-button-primary:disabled {
+                  opacity: 0.4 !important;
+                }
+                .fullcalendar-wrapper .fc-button-active {
+                  background-color: #a855f7 !important;
+                  border-color: #a855f7 !important;
+                  color: #ffffff !important;
+                }
+                .fullcalendar-wrapper .fc-list-day-cushion {
+                  background-color: rgba(140, 140, 160, 0.1) !important;
+                  color: var(--foreground, #ffffff) !important;
+                }
+                .fullcalendar-wrapper .fc-list-event:hover td {
+                  background-color: rgba(168, 85, 247, 0.1) !important;
+                }
+                .fullcalendar-wrapper .fc-event {
+                  cursor: pointer !important;
+                  border-radius: 4px !important;
+                  border: none !important;
+                  font-size: 0.75rem !important;
+                  font-weight: 500 !important;
+                  padding: 2px 4px !important;
+                }
+              `}</style>
               <FullCalendar
                 ref={calendarRef}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
