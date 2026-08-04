@@ -157,6 +157,10 @@ class OrganizationModel(Base):
     stripe_subscription_status = Column(String, nullable=True)
     trial_ends_at = Column(DateTime(timezone=True), nullable=True)
     current_plan = Column(String, nullable=True)
+    custom_monthly_minutes = Column(Float, nullable=True)
+    custom_max_concurrency = Column(Integer, nullable=True)
+    billing_cycle_start = Column(DateTime(timezone=True), nullable=True)
+    billing_cycle_end = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     users = relationship(

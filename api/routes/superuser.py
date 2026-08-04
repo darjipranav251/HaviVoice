@@ -240,6 +240,121 @@ async def list_tenants(user: UserModel = Depends(get_superuser)):
         ]
 
 
+class TenantBillingDetailsResponse(BaseModel):
+    organization_id: int
+    email: Optional[str]
+    name: Optional[str]
+    stripe_customer_id: Optional[str]
+    stripe_subscription_id: Optional[str]
+    stripe_subscription_status: Optional[str]
+    current_plan: Optional[str]
+    trial_ends_at: Optional[str]
+    billing_cycle_start: Optional[str]
+    billing_cycle_end: Optional[str]
+    custom_monthly_minutes: Optional[float]
+    custom_max_concurrency: Optional[int]
+    created_at: str
+
+
+class UpdateTenantBillingRequest(BaseModel):
+    stripe_customer_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
+    stripe_subscription_status: Optional[str] = None
+    current_plan: Optional[str] = None
+    trial_ends_at: Optional[str] = None
+    billing_cycle_start: Optional[str] = None
+    billing_cycle_end: Optional[str] = None
+    custom_monthly_minutes: Optional[float] = None
+    custom_max_concurrency: Optional[int] = None
+
+
+@router.get("/tenants/billing", response_model=List[TenantBillingDetailsResponse])
+async def list_tenants_billing(user: UserModel = Depends(get_superuser)):
+    """Get comprehensive billing & subscription information for all tenants."""
+    async with db_client.async_session() as session:
+        from api.db.models import OrganizationModel, UserModel, organization_users_association
+        from sqlalchemy import select
+
+        stmt = (
+            select(OrganizationModel, UserModel.email)
+            .join(organization_users_association, OrganizationModel.id == organization_users_association.c.organization_id)
+            .join(UserModel, organization_users_association.c.user_id == UserModel.id)
+            .order_by(OrganizationModel.id.asc())
+        )
+        res = await session.execute(stmt)
+        rows = res.all()
+
+        result = []
+        for org, email in rows:
+            result.append(
+                TenantBillingDetailsResponse(
+                    organization_id=org.id,
+                    email=email,
+                    name=email.split("@")[0] if email else f"Tenant #{org.id}",
+                    stripe_customer_id=org.stripe_customer_id,
+                    stripe_subscription_id=org.stripe_subscription_id,
+                    stripe_subscription_status=org.stripe_subscription_status or "active",
+                    current_plan=org.current_plan or "free",
+                    trial_ends_at=org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+                    billing_cycle_start=org.billing_cycle_start.isoformat() if org.billing_cycle_start else None,
+                    billing_cycle_end=org.billing_cycle_end.isoformat() if org.billing_cycle_end else None,
+                    custom_monthly_minutes=org.custom_monthly_minutes,
+                    custom_max_concurrency=org.custom_max_concurrency,
+                    created_at=org.created_at.isoformat() if org.created_at else "",
+                )
+            )
+        return result
+
+
+@router.post("/tenants/{organization_id}/billing")
+async def update_tenant_billing(
+    organization_id: int,
+    req: UpdateTenantBillingRequest,
+    user: UserModel = Depends(get_superuser),
+):
+    """Update a user/tenant's billing dates, subscription status, plan, and minute/concurrency limits."""
+    async with db_client.async_session() as session:
+        from api.db.models import OrganizationModel
+        org = await session.get(OrganizationModel, organization_id)
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+
+        if req.stripe_customer_id is not None:
+            org.stripe_customer_id = req.stripe_customer_id
+        if req.stripe_subscription_id is not None:
+            org.stripe_subscription_id = req.stripe_subscription_id
+        if req.stripe_subscription_status is not None:
+            org.stripe_subscription_status = req.stripe_subscription_status
+        if req.current_plan is not None:
+            org.current_plan = req.current_plan
+
+        if req.custom_monthly_minutes is not None:
+            org.custom_monthly_minutes = req.custom_monthly_minutes
+        if req.custom_max_concurrency is not None:
+            org.custom_max_concurrency = req.custom_max_concurrency
+
+        if req.trial_ends_at is not None:
+            if req.trial_ends_at == "":
+                org.trial_ends_at = None
+            else:
+                org.trial_ends_at = datetime.fromisoformat(req.trial_ends_at.replace("Z", "+00:00"))
+
+        if req.billing_cycle_start is not None:
+            if req.billing_cycle_start == "":
+                org.billing_cycle_start = None
+            else:
+                org.billing_cycle_start = datetime.fromisoformat(req.billing_cycle_start.replace("Z", "+00:00"))
+
+        if req.billing_cycle_end is not None:
+            if req.billing_cycle_end == "":
+                org.billing_cycle_end = None
+            else:
+                org.billing_cycle_end = datetime.fromisoformat(req.billing_cycle_end.replace("Z", "+00:00"))
+
+        await session.commit()
+        return {"status": "success", "organization_id": organization_id}
+
+
 @router.post("/select-tenant")
 async def select_tenant(
     request: SelectTenantRequest,
