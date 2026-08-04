@@ -117,7 +117,7 @@ export default function BillingPage() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [purchasing, setPurchasing] = useState(false);
-    const [showSuperadminBillingModal, setShowSuperadminBillingModal] = useState(false);
+    const [openModalCount, setOpenModalCount] = useState(0);
     const isSuperuser = (auth.user as any)?.is_superuser ?? false;
     const activeOrgId = (auth.user as any)?.selected_organization_id ?? (auth.user as any)?.organization_id;
     const [currentPage, setCurrentPage] = useState(
@@ -296,20 +296,33 @@ export default function BillingPage() {
                         </p>
                         {isSuperuser ? (
                             <Button
-                                className="mt-4 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold shadow-md transition-all duration-200 gap-2"
-                                onClick={() => setShowSuperadminBillingModal(true)}
+                                className="mt-4 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold shadow-md transition-all duration-200 gap-2 cursor-pointer"
+                                onClick={() => setOpenModalCount((prev) => prev + 1)}
                             >
                                 <Sparkles className="h-4 w-4" />
                                 Manage Subscription & User Billing
                             </Button>
                         ) : (
-                            <Button className="mt-4 w-full" onClick={async () => {
+                            <Button className="mt-4 w-full cursor-pointer" onClick={async () => {
                                 try {
-                                    const res = await fetch("/api/v1/billing/checkout", { method: "POST", headers: { Authorization: `Bearer ${await auth.getAccessToken()}`} });
+                                    const token = await auth.getAccessToken();
+                                    const res = await fetch("/api/v1/billing/checkout", {
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Type": "application/json",
+                                            Authorization: `Bearer ${token}`,
+                                        },
+                                        body: JSON.stringify({ price_id: "price_dummy_monthly" }),
+                                    });
                                     const data = await res.json();
-                                    if (data.url) window.location.href = data.url;
+                                    if (data.url) {
+                                        window.location.href = data.url;
+                                    } else {
+                                        router.push("/auth/select-plan");
+                                    }
                                 } catch (e) {
-                                    toast.error("Failed to start checkout session.");
+                                    console.error("Checkout error:", e);
+                                    router.push("/auth/select-plan");
                                 }
                             }}>
                                 <CreditCard className="h-4 w-4 mr-2" />
@@ -503,8 +516,8 @@ export default function BillingPage() {
                 <div className="mt-8 pt-6 border-t border-purple-500/20">
                     <SuperadminBillingManager
                         activeOrgId={activeOrgId}
-                        autoOpenActiveOrgModal={showSuperadminBillingModal}
-                        onModalClosed={() => setShowSuperadminBillingModal(false)}
+                        openModalTrigger={openModalCount}
+                        onModalClosed={() => setOpenModalCount(0)}
                     />
                 </div>
             )}

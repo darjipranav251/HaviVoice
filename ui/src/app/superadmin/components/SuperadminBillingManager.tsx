@@ -32,10 +32,11 @@ export interface TenantBillingDetails {
 interface SuperadminBillingManagerProps {
   activeOrgId?: number | null;
   autoOpenActiveOrgModal?: boolean;
+  openModalTrigger?: number;
   onModalClosed?: () => void;
 }
 
-export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, onModalClosed }: SuperadminBillingManagerProps = {}) {
+export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, openModalTrigger, onModalClosed }: SuperadminBillingManagerProps = {}) {
   const { getAccessToken } = useAuth();
   const [tenants, setTenants] = useState<TenantBillingDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +68,7 @@ export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, 
         const data: TenantBillingDetails[] = await res.json();
         setTenants(data);
 
-        if (autoOpenActiveOrgModal && data.length > 0) {
+        if ((autoOpenActiveOrgModal || (openModalTrigger && openModalTrigger > 0)) && data.length > 0) {
           const target = activeOrgId ? data.find((t) => t.organization_id === activeOrgId) || data[0] : data[0];
           if (target) {
             handleOpenEdit(target);
@@ -89,13 +90,13 @@ export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, 
   }, [getAccessToken]);
 
   useEffect(() => {
-    if (autoOpenActiveOrgModal && tenants.length > 0) {
+    if ((autoOpenActiveOrgModal || (openModalTrigger && openModalTrigger > 0)) && tenants.length > 0) {
       const target = activeOrgId ? tenants.find((t) => t.organization_id === activeOrgId) || tenants[0] : tenants[0];
       if (target) {
         handleOpenEdit(target);
       }
     }
-  }, [autoOpenActiveOrgModal, activeOrgId, tenants]);
+  }, [autoOpenActiveOrgModal, openModalTrigger, activeOrgId, tenants]);
 
   const handleOpenEdit = (tenant: TenantBillingDetails) => {
     setEditingTenant(tenant);
