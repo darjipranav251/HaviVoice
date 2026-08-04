@@ -68,8 +68,13 @@ export default function AppointmentsPage() {
   const calendarRef = useRef<any>(null);
 
   const isSuperuser = (user as any)?.is_superuser ?? false;
+  const userSelectedOrg = (user as any)?.selected_organization_id;
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [tenants, setTenants] = useState<{ organization_id: number; email: string }[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>(
+    userSelectedOrg ? String(userSelectedOrg) : "all"
+  );
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [timeRange, setTimeRange] = useState<string>("all");
@@ -94,24 +99,56 @@ export default function AppointmentsPage() {
     notes: "",
   });
 
+  // Fetch tenants for superuser filter
+  useEffect(() => {
+    if (!isSuperuser) return;
+    const fetchTenants = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+        const res = await fetch("/api/v1/superuser/tenants", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTenants(data);
+        }
+      } catch (err) {
+        console.error("Error loading tenants for filter:", err);
+      }
+    };
+    fetchTenants();
+  }, [isSuperuser, getAccessToken]);
+
   const fetchAppointments = async () => {
     setLoading(true);
     try {
       const token = await getAccessToken();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       const params = new URLSearchParams();
       if (activeTab !== "all") params.append("status", activeTab);
       if (timeRange !== "all") params.append("time_range", timeRange);
       if (searchTerm) params.append("search", searchTerm);
+      if (isSuperuser && selectedTenantId !== "all") {
+        params.append("tenant_id", selectedTenantId);
+      }
 
       const res = await fetch(`/api/v1/appointments?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to fetch appointments");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to fetch appointments");
+      }
       const data = await res.json();
       setAppointments(data);
     } catch (err) {
-      toast.error("Error loading appointments");
       console.error(err);
+      toast.error(err instanceof Error ? err.message : "Error loading appointments");
     } finally {
       setLoading(false);
     }
@@ -119,7 +156,7 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     fetchAppointments();
-  }, [activeTab, timeRange, searchTerm]);
+  }, [activeTab, timeRange, searchTerm, selectedTenantId, user]);
 
   // Handle Slot Selection in FullCalendar
   const handleDateSelect = (selectInfo: any) => {
@@ -337,6 +374,24 @@ export default function AppointmentsPage() {
               <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {/* Superadmin Tenant Selector Filter */}
+          {isSuperuser && (
+            <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
+              <SelectTrigger className="w-[180px] h-9 text-xs border-purple-500/30 bg-purple-500/5">
+                <Building className="mr-1.5 h-3.5 w-3.5 text-purple-500 shrink-0" />
+                <SelectValue placeholder="Filter Tenant" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">🌐 All System Tenants</SelectItem>
+                {tenants.map((t) => (
+                  <SelectItem key={t.organization_id} value={String(t.organization_id)}>
+                    👤 {t.email ? t.email : `Org ${t.organization_id}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Time Range Filter */}
           <Select value={timeRange} onValueChange={setTimeRange}>

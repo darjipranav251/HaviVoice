@@ -98,11 +98,14 @@ async def get_appointments(
             .outerjoin(UserModel, organization_users_association.c.user_id == UserModel.id)
         )
 
-        # Scoping logic
-        if is_superuser:
-            if tenant_id:
-                query = query.where(AppointmentModel.organization_id == tenant_id)
-            # If no tenant_id is specified, superuser sees ALL appointments across all tenants!
+        # Scoping logic:
+        if tenant_id:
+            query = query.where(AppointmentModel.organization_id == tenant_id)
+        elif is_superuser:
+            user_selected_org = getattr(user, "selected_organization_id", None)
+            if user_selected_org is not None:
+                query = query.where(AppointmentModel.organization_id == user_selected_org)
+            # Otherwise (global superuser mode), show all appointments across all tenants!
         else:
             query = query.where(AppointmentModel.organization_id == selected_org_id)
 
