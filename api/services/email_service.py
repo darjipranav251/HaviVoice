@@ -123,6 +123,7 @@ def send_customer_appointment_confirmation(
     notes: Optional[str] = None,
     org_name: str = "HaviAI Voice Assistant",
     is_emergency: bool = False,
+    address: Optional[str] = None,
 ) -> bool:
     """Sends confirmation email with calendar invite to customer."""
     start_formatted = start_time.strftime("%A, %B %d, %Y at %I:%M %p UTC")
@@ -170,6 +171,7 @@ def send_customer_appointment_confirmation(
             <div class="detail-row">
                 <span class="detail-label">Hosted By:</span> {org_name}
             </div>
+            {f'<div class="detail-row"><span class="detail-label">Location / Address:</span> 📍 {address}</div>' if address else ''}
             {f'<div class="detail-row"><span class="detail-label">Notes:</span> {notes}</div>' if notes else ''}
 
             <p style="font-size: 14px; color: #64748b; margin-top: 20px;">
@@ -186,9 +188,10 @@ def send_customer_appointment_confirmation(
 
     ics_content = create_ics_calendar_event(
         title=f"{'🚨 EMERGENCY: ' if is_emergency else ''}{appointment_title} - {org_name}",
-        description=f"Appointment with {org_name}. Priority: {'EMERGENCY' if is_emergency else 'Normal'}. Notes: {notes or 'N/A'}",
+        description=f"Appointment with {org_name}. Priority: {'EMERGENCY' if is_emergency else 'Normal'}. Address: {address or 'N/A'}. Notes: {notes or 'N/A'}",
         start_dt=start_time,
         end_dt=end_time,
+        location=address or "Phone / Web Call",
     )
 
     return _send_smtp_email(
@@ -210,6 +213,7 @@ def send_owner_booking_notification(
     notes: Optional[str] = None,
     org_name: str = "Your Business",
     is_emergency: bool = False,
+    address: Optional[str] = None,
 ) -> bool:
     """Sends notification email to business owner when a new booking arrives."""
     start_formatted = start_time.strftime("%A, %B %d, %Y at %I:%M %p UTC")
@@ -258,6 +262,7 @@ def send_owner_booking_notification(
                 <div class="detail-row"><span class="detail-label">Client Email:</span> {customer_email or 'N/A'}</div>
                 <div class="detail-row"><span class="detail-label">Appointment:</span> {appointment_title}</div>
                 <div class="detail-row"><span class="detail-label">Scheduled Time:</span> <strong>{start_formatted}</strong></div>
+                {f'<div class="detail-row"><span class="detail-label">Full Address:</span> 📍 {address}</div>' if address else ''}
                 {f'<div class="detail-row"><span class="detail-label">Priority:</span> <span style="color: #dc2626; font-weight: bold;">🚨 EMERGENCY</span></div>' if is_emergency else ''}
                 {f'<div class="detail-row"><span class="detail-label">Notes:</span> {notes}</div>' if notes else ''}
             </div>

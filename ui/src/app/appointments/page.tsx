@@ -14,6 +14,7 @@ import {
   Flame,
   Loader2,
   Mail,
+  MapPin,
   Phone,
   Plus,
   Search,
@@ -21,7 +22,7 @@ import {
   User,
   XCircle,
 } from "lucide-react";
-import { useEffect, useRef,useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ interface Appointment {
   status: "upcoming" | "completed" | "no_show" | "cancelled";
   is_emergency: boolean;
   notes?: string;
+  address?: string;
   organization_name?: string;
   organization_email?: string;
   created_at: string;
@@ -97,6 +99,7 @@ export default function AppointmentsPage() {
     duration_minutes: 30,
     is_emergency: false,
     notes: "",
+    address: "",
   });
 
   // Synchronize selected tenant when user switches organization context
@@ -185,6 +188,7 @@ export default function AppointmentsPage() {
       duration_minutes: 30,
       is_emergency: false,
       notes: "",
+      address: "",
     });
     setBookModalOpen(true);
   };
@@ -227,6 +231,7 @@ export default function AppointmentsPage() {
           end_time: endDateTime.toISOString(),
           is_emergency: bookingForm.is_emergency,
           notes: bookingForm.notes,
+          address: bookingForm.address || null,
         }),
       });
 
@@ -349,6 +354,7 @@ export default function AppointmentsPage() {
               duration_minutes: 30,
               is_emergency: false,
               notes: "",
+              address: "",
             });
             setBookModalOpen(true);
           }}
@@ -616,6 +622,16 @@ export default function AppointmentsPage() {
               />
             </div>
 
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Full Address / Location (Optional)</label>
+              <Input
+                placeholder="e.g. 123 Main St, Suite 400, Toronto, ON"
+                value={bookingForm.address}
+                onChange={(e) => setBookingForm({ ...bookingForm, address: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+
             <div className="flex items-center gap-2 pt-1">
               <input
                 type="checkbox"
@@ -687,6 +703,13 @@ export default function AppointmentsPage() {
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span>{selectedAppointment.client_email}</span>
+                  </div>
+                )}
+
+                {selectedAppointment.address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <span>{selectedAppointment.address}</span>
                   </div>
                 )}
 

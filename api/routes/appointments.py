@@ -27,6 +27,7 @@ class BookAppointmentRequest(BaseModel):
     end_time: Optional[datetime] = None
     is_emergency: Optional[bool] = False
     notes: Optional[str] = None
+    address: Optional[str] = None
     organization_id: Optional[int] = None
 
 
@@ -34,6 +35,7 @@ class UpdateAppointmentStatusRequest(BaseModel):
     status: Optional[str] = None  # upcoming, completed, no_show, cancelled
     is_emergency: Optional[bool] = None
     notes: Optional[str] = None
+    address: Optional[str] = None
 
 
 class AppointmentItemResponse(BaseModel):
@@ -48,6 +50,7 @@ class AppointmentItemResponse(BaseModel):
     status: str
     is_emergency: bool
     notes: Optional[str] = None
+    address: Optional[str] = None
     booking_uid: Optional[str] = None
     organization_name: Optional[str] = None
     organization_email: Optional[str] = None
@@ -159,6 +162,7 @@ async def get_appointments(
                     status=apt.status,
                     is_emergency=apt.is_emergency or False,
                     notes=apt.notes,
+                    address=apt.address,
                     booking_uid=apt.booking_uid,
                     organization_name=org_name,
                     organization_email=org_email,
@@ -241,6 +245,7 @@ async def book_appointment(
             status="upcoming",
             is_emergency=req.is_emergency or False,
             notes=req.notes,
+            address=req.address,
         )
         session.add(new_apt)
         await session.commit()
@@ -274,6 +279,7 @@ async def book_appointment(
                 notes=req.notes,
                 org_name=org_name,
                 is_emergency=new_apt.is_emergency,
+                address=req.address,
             )
 
         # 2. Dispatch Business Owner Alert Email via Background Task
@@ -289,6 +295,7 @@ async def book_appointment(
                 notes=req.notes,
                 org_name=org_name,
                 is_emergency=new_apt.is_emergency,
+                address=req.address,
             )
 
         return AppointmentItemResponse(
@@ -303,6 +310,7 @@ async def book_appointment(
             status=new_apt.status,
             is_emergency=new_apt.is_emergency,
             notes=new_apt.notes,
+            address=new_apt.address,
             booking_uid=new_apt.booking_uid,
             organization_name=org_name,
             organization_email=org_email,

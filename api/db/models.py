@@ -1480,6 +1480,7 @@ class AppointmentModel(Base):
     )  # upcoming, completed, no_show, cancelled
     is_emergency = Column(Boolean, default=False, nullable=False)
     notes = Column(Text, nullable=True)
+    address = Column(Text, nullable=True)
     booking_uid = Column(String(255), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     updated_at = Column(
