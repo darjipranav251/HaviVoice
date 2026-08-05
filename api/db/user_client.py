@@ -28,10 +28,8 @@ class UserClient(BaseDBClient):
             if user is not None:
                 return user, False
 
-            # Check if this is the very first user in a fresh/flushed database
-            count_res = await session.execute(select(func.count(UserModel.id)))
-            total_users = count_res.scalar() or 0
-            is_superuser = (total_users == 0)
+            from api.constants import SUPERADMIN_EMAIL
+            is_superuser = False
 
             # Use PostgreSQL's INSERT ... ON CONFLICT DO NOTHING
             # This is atomic and handles race conditions at the database level
@@ -216,11 +214,8 @@ class UserClient(BaseDBClient):
         """Create a new user with email and password hash."""
         from api.constants import SUPERADMIN_EMAIL
         async with self.async_session() as session:
-            count_res = await session.execute(select(func.count(UserModel.id)))
-            total_users = count_res.scalar() or 0
-
-            # First registered user in system OR matching SUPERADMIN_EMAIL automatically becomes superadmin (SaaS Owner)
-            is_superuser = (total_users == 0) or (email.lower() == SUPERADMIN_EMAIL)
+            # ONLY matching SUPERADMIN_EMAIL (e.g. havivoice@gmail.com) becomes superadmin (SaaS Owner)
+            is_superuser = (email.lower() == SUPERADMIN_EMAIL)
             user = UserModel(
                 provider_id=f"oss_{int(datetime.now(timezone.utc).timestamp())}_{uuid.uuid4()}",
                 email=email.lower(),
