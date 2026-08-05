@@ -18,6 +18,8 @@ export interface LocalUser extends BaseUser {
   trial_ends_at?: string;
   current_plan?: string;
   stripe_subscription_status?: string;
+  billing_cycle_start?: string;
+  billing_cycle_end?: string;
 }
 
 // Union type for all user types

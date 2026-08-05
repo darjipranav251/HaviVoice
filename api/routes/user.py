@@ -97,6 +97,8 @@ async def get_auth_user(
     trial_ends_at = None
     current_plan = None
     stripe_subscription_status = None
+    billing_cycle_start = None
+    billing_cycle_end = None
     
     if user.selected_organization_id:
         org = await db_client.get_organization_by_id(user.selected_organization_id)
@@ -104,6 +106,8 @@ async def get_auth_user(
             trial_ends_at = org.trial_ends_at.isoformat() if org.trial_ends_at else None
             current_plan = org.current_plan
             stripe_subscription_status = org.stripe_subscription_status
+            billing_cycle_start = org.billing_cycle_start.isoformat() if org.billing_cycle_start else None
+            billing_cycle_end = org.billing_cycle_end.isoformat() if org.billing_cycle_end else None
 
     return {
         "id": user.id,
@@ -111,6 +115,8 @@ async def get_auth_user(
         "trial_ends_at": trial_ends_at,
         "current_plan": current_plan,
         "stripe_subscription_status": stripe_subscription_status,
+        "billing_cycle_start": billing_cycle_start,
+        "billing_cycle_end": billing_cycle_end,
         "organization_id": user.selected_organization_id,
     }
 

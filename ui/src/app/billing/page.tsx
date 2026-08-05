@@ -276,24 +276,82 @@ export default function BillingPage() {
                 <Card className={isSuperuser ? "border-purple-500/30 bg-purple-500/5 dark:bg-purple-950/10 shadow-sm" : ""}>
                     <CardHeader className="pb-2 flex flex-row items-start justify-between">
                         <div>
-                            <CardDescription>Subscription Status</CardDescription>
-                            <CardTitle className="text-3xl capitalize flex items-center gap-2">
-                                {(auth.user as any)?.stripe_subscription_status || "No Subscription"}
+                            <CardDescription>Subscription & Plan Details</CardDescription>
+                            <CardTitle className="text-2xl capitalize flex items-center gap-2 mt-1">
+                                {(auth.user as any)?.current_plan 
+                                    ? `${formatTitleCase((auth.user as any).current_plan)} Plan`
+                                    : "Standard Plan"}
                             </CardTitle>
                         </div>
-                        {isSuperuser && (
-                            <Badge className="bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30 gap-1">
-                                <Shield className="h-3 w-3" />
-                                Superadmin Mode
+                        <div className="flex flex-col items-end gap-1">
+                            {isSuperuser && (
+                                <Badge className="bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30 gap-1">
+                                    <Shield className="h-3 w-3" />
+                                    Superadmin Mode
+                                </Badge>
+                            )}
+                            <Badge className={
+                                (auth.user as any)?.stripe_subscription_status === "active"
+                                    ? "bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30 capitalize"
+                                    : (auth.user as any)?.stripe_subscription_status === "trialing"
+                                    ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 capitalize"
+                                    : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 capitalize"
+                            }>
+                                {(auth.user as any)?.stripe_subscription_status || "Trialing"}
                             </Badge>
-                        )}
+                        </div>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground mt-2">
-                            {(auth.user as any)?.trial_ends_at
-                                ? `Trial ends at: ${formatDate((auth.user as any).trial_ends_at)}`
-                                : "No active trial."}
-                        </p>
+                    <CardContent className="space-y-3">
+                        {(() => {
+                            const userObj = (auth.user as any) || {};
+                            const trialEnd = userObj.trial_ends_at ? new Date(userObj.trial_ends_at) : null;
+                            const cycleEnd = userObj.billing_cycle_end ? new Date(userObj.billing_cycle_end) : null;
+                            const now = new Date();
+
+                            if (trialEnd) {
+                                const isTrialActive = trialEnd > now;
+                                const daysLeft = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+                                return (
+                                    <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1">
+                                        <div className="flex justify-between font-medium">
+                                            <span>Trial Status:</span>
+                                            <span className={isTrialActive ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}>
+                                                {isTrialActive ? `${daysLeft} days remaining` : "Trial Expired"}
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {isTrialActive 
+                                                ? `Free trial expires on ${formatDate(userObj.trial_ends_at)}`
+                                                : `Trial expired on ${formatDate(userObj.trial_ends_at)}. Please upgrade your plan.`}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            if (cycleEnd) {
+                                const daysLeft = Math.ceil((cycleEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                return (
+                                    <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1">
+                                        <div className="flex justify-between font-medium">
+                                            <span>Next Payment / Renewal:</span>
+                                            <span className={daysLeft > 0 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                                {daysLeft > 0 ? `${daysLeft} days remaining` : "Due today"}
+                                            </span>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            Billing cycle renews on {formatDate(userObj.billing_cycle_end)}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <p className="text-sm text-muted-foreground mt-2">
+                                    No active billing expiration set.
+                                </p>
+                            );
+                        })()}
                         {isSuperuser ? (
                             <Button
                                 className="mt-4 w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold shadow-md transition-all duration-200 gap-2 cursor-pointer"
