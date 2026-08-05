@@ -140,11 +140,41 @@ def send_customer_appointment_confirmation(
         else '<div class="badge">✓ Confirmed Appointment</div>'
     )
 
+    start_iso = start_time.isoformat()
+    end_iso = end_time.isoformat()
+
+    schema_json_ld = f"""
+    <script type="application/ld+json">
+    {{
+      "@context": "http://schema.org",
+      "@type": "EventReservation",
+      "reservationNumber": "APT-{int(start_time.timestamp())}",
+      "reservationStatus": "http://schema.org/Confirmed",
+      "underName": {{
+        "@type": "Person",
+        "name": "{customer_name or 'Valued Client'}"
+      }},
+      "reservationFor": {{
+        "@type": "Event",
+        "name": "{appointment_title}",
+        "startDate": "{start_iso}",
+        "endDate": "{end_iso}",
+        "location": {{
+          "@type": "Place",
+          "name": "{org_name}",
+          "address": "{address or 'Phone / Web Call'}"
+        }}
+      }}
+    }}
+    </script>
+    """
+
     html_body = f"""
     <!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
+        {schema_json_ld}
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }}
             .card {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-top: 6px solid {card_border}; }}
