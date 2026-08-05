@@ -4328,6 +4328,7 @@ export type OrganizationPreferences = {
      * External Pbx Integrations Enabled
      */
     external_pbx_integrations_enabled?: boolean;
+    notification_email?: string | null;
 };
 
 /**

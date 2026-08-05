@@ -22,6 +22,7 @@ const emptyPreferences: OrganizationPreferences = {
   test_phone_number: "",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   external_pbx_integrations_enabled: false,
+  notification_email: "",
 };
 
 const timezoneSelectStyles = {
@@ -134,6 +135,7 @@ export function OrganizationPreferencesSection() {
         timezone: nextPreferences.timezone || emptyPreferences.timezone,
         external_pbx_integrations_enabled:
           nextPreferences.external_pbx_integrations_enabled ?? false,
+        notification_email: nextPreferences.notification_email || "",
       });
       setTimezone(
         nextPreferences.timezone || emptyPreferences.timezone || "UTC",
@@ -157,6 +159,7 @@ export function OrganizationPreferencesSection() {
               timezone: getTimezoneValue(timezone),
               external_pbx_integrations_enabled:
                 preferences.external_pbx_integrations_enabled ?? false,
+              notification_email: preferences.notification_email || null,
             },
           },
         );
@@ -175,6 +178,7 @@ export function OrganizationPreferencesSection() {
         timezone: result.data.timezone || emptyPreferences.timezone,
         external_pbx_integrations_enabled:
           result.data.external_pbx_integrations_enabled ?? false,
+        notification_email: result.data.notification_email || "",
       });
       setTimezone(result.data.timezone || emptyPreferences.timezone || "UTC");
       await refreshConfig();
@@ -227,12 +231,12 @@ export function OrganizationPreferencesSection() {
           <Input
             id="settings-notification-email"
             type="email"
-            value={(preferences as Record<string, unknown>).notification_email as string || ""}
+            value={preferences.notification_email || ""}
             onChange={(event) =>
               setPreferences({
                 ...preferences,
                 notification_email: event.target.value,
-              } as OrganizationPreferences)
+              })
             }
             placeholder="owner@yourbusiness.com"
             className="flex-1"
@@ -242,7 +246,7 @@ export function OrganizationPreferencesSection() {
             variant="outline"
             onClick={async () => {
               const userEmail = (user as { primaryEmail?: string; email?: string })?.primaryEmail || (user as { primaryEmail?: string; email?: string })?.email || "";
-              const targetEmail = ((preferences as Record<string, unknown>).notification_email as string) || userEmail;
+              const targetEmail = preferences.notification_email || userEmail;
               if (!targetEmail) {
                 toast.error("Please enter a notification email address first");
                 return;
