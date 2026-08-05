@@ -162,16 +162,18 @@ export default function AppointmentsPage() {
       const data: Appointment[] = await res.json();
       setAppointments(data);
 
-      // Detect unresolved past appointments still marked as "upcoming"
-      const nowMs = Date.now();
-      const pastUpcoming = data.filter((apt) => {
-        const aptEndMs = new Date(apt.end_time || apt.start_time).getTime();
-        return aptEndMs < nowMs && apt.status === "upcoming";
-      });
+      // Detect unresolved past appointments still marked as "upcoming" (Only for regular business users, NOT superadmin)
+      if (!isSuperuser) {
+        const nowMs = Date.now();
+        const pastUpcoming = data.filter((apt) => {
+          const aptEndMs = new Date(apt.end_time || apt.start_time).getTime();
+          return aptEndMs < nowMs && apt.status === "upcoming";
+        });
 
-      if (pastUpcoming.length > 0) {
-        setUnresolvedAppointments(pastUpcoming);
-        setUnresolvedModalOpen(true);
+        if (pastUpcoming.length > 0) {
+          setUnresolvedAppointments(pastUpcoming);
+          setUnresolvedModalOpen(true);
+        }
       }
     } catch (err) {
       console.error(err);
