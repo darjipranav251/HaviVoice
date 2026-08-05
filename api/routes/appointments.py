@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import Date, and_, cast, func, or_, select
 
@@ -169,25 +169,66 @@ async def get_appointments(
         return appointments
 
 
+from api.services.email_service import (
+    is_smtp_configured,
+    send_customer_appointment_confirmation,
+    send_owner_booking_notification,
+)
+
+
+class TestEmailRequest(BaseModel):
+    to_email: str
+
+
+@router.post("/test-email")
+async def send_test_appointment_email(
+    req: TestEmailRequest,
+    user: UserModel = Depends(get_user),
+):
+    """Test endpoint to verify SMTP configuration."""
+    if not is_smtp_configured():
+        raise HTTPException(
+            status_code=400,
+            detail="SMTP is not configured on server. Please set SMTP_HOST, SMTP_USER, and SMTP_PASSWORD in .env.",
+        )
+    
+    success = send_customer_appointment_confirmation(
+        customer_email=req.to_email,
+        customer_name="Test Customer",
+        appointment_title="Test Consultation",
+        start_time=datetime.now(UTC) + timedelta(days=1),
+        end_time=datetime.now(UTC) + timedelta(days=1, minutes=30),
+        notes="This is a test email to verify your HaviAI SMTP settings.",
+        org_name="HaviAI Voice System",
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send test email. Check server logs for details.")
+    
+    return {"message": f"Test email sent successfully to {req.to_email}"}
+
+
 @router.post("/book", response_model=AppointmentItemResponse)
 async def book_appointment(
     req: BookAppointmentRequest,
+    background_tasks: BackgroundTasks,
     user: UserModel = Depends(get_user),
 ):
     """Book a new appointment. Called by AI voice call HTTP tool or UI."""
     org_id = resolve_org_id(req.organization_id, user)
 
-    async with db_client.async_session() as session:
-        org = await session.get(OrganizationModel, org_id)
-        is_active, inactive_reason = is_subscription_active_for_org(org, user=user)
-        if not is_active:
-            raise HTTPException(status_code=402, detail=inactive_reason)
+    start_dt = req.start_time
     if not req.end_time:
         end_dt = start_dt + timedelta(minutes=30)
     else:
         end_dt = req.end_time
 
     async with db_client.async_session() as session:
+        org = await session.get(OrganizationModel, org_id)
+        if org:
+            is_active, inactive_reason = is_subscription_active_for_org(org, user=user)
+            if not is_active:
+                raise HTTPException(status_code=402, detail=inactive_reason)
+
         new_apt = AppointmentModel(
             organization_id=org_id,
             client_name=req.client_name,
@@ -216,6 +257,36 @@ async def book_appointment(
         org_res = await session.execute(org_stmt)
         org_email = org_res.scalar_one_or_none()
         org_name = org_email.split("@")[0] if org_email else f"Org {org_id}"
+
+        # Resolve owner notification email (org.notification_email > org_email)
+        owner_target_email = getattr(org, "notification_email", None) or org_email
+
+        # 1. Dispatch Customer Confirmation Email via Background Task
+        if req.client_email:
+            background_tasks.add_task(
+                send_customer_appointment_confirmation,
+                customer_email=req.client_email,
+                customer_name=req.client_name,
+                appointment_title=req.title or "Appointment",
+                start_time=start_dt,
+                end_time=end_dt,
+                notes=req.notes,
+                org_name=org_name,
+            )
+
+        # 2. Dispatch Business Owner Alert Email via Background Task
+        if owner_target_email:
+            background_tasks.add_task(
+                send_owner_booking_notification,
+                owner_email=owner_target_email,
+                customer_name=req.client_name,
+                customer_email=req.client_email,
+                customer_phone=req.client_phone,
+                appointment_title=req.title or "Appointment",
+                start_time=start_dt,
+                notes=req.notes,
+                org_name=org_name,
+            )
 
         return AppointmentItemResponse(
             id=new_apt.id,

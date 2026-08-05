@@ -39,6 +39,13 @@ async def upsert_organization_preferences(
         OrganizationConfigurationKey.ORGANIZATION_PREFERENCES.value,
         preferences.model_dump(mode="json", exclude_none=True),
     )
+    if preferences.notification_email is not None:
+        async with db_client.async_session() as session:
+            from api.db.models import OrganizationModel
+            org = await session.get(OrganizationModel, organization_id)
+            if org:
+                org.notification_email = preferences.notification_email
+                await session.commit()
     return preferences
 
 

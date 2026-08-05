@@ -1,6 +1,6 @@
 "use client";
 
-import { Save } from "lucide-react";
+import { Mail, Save } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import TimezoneSelect, { type ITimezoneOption } from "react-timezone-select";
 import { toast } from "sonner";
@@ -91,7 +91,7 @@ function getTimezoneValue(tz: ITimezoneOption | string): string {
 }
 
 export function OrganizationPreferencesSection() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, getAccessToken, loading: authLoading } = useAuth();
   const { refreshConfig } = useUserConfig();
   const timezoneSelectId = useId();
   const hasFetched = useRef(false);
@@ -220,6 +220,62 @@ export function OrganizationPreferencesSection() {
           />
         </div>
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="settings-notification-email">Owner Notification Email</Label>
+        <div className="flex items-center gap-3">
+          <Input
+            id="settings-notification-email"
+            type="email"
+            value={(preferences as Record<string, unknown>).notification_email as string || ""}
+            onChange={(event) =>
+              setPreferences({
+                ...preferences,
+                notification_email: event.target.value,
+              } as OrganizationPreferences)
+            }
+            placeholder="owner@yourbusiness.com"
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={async () => {
+              const userEmail = (user as { primaryEmail?: string; email?: string })?.primaryEmail || (user as { primaryEmail?: string; email?: string })?.email || "";
+              const targetEmail = ((preferences as Record<string, unknown>).notification_email as string) || userEmail;
+              if (!targetEmail) {
+                toast.error("Please enter a notification email address first");
+                return;
+              }
+              try {
+                const token = await getAccessToken();
+                const res = await fetch("/api/v1/appointments/test-email", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({ to_email: targetEmail }),
+                });
+                if (!res.ok) {
+                  const data = await res.json();
+                  throw new Error(data.detail || "Failed to send test email");
+                }
+                toast.success(`Test email sent to ${targetEmail}!`);
+              } catch (err: unknown) {
+                toast.error((err as Error).message || "Failed to send test email");
+              }
+            }}
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            Test Email
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          New appointment booking notifications will be sent to this email address.
+        </p>
+      </div>
+
       <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
         <div className="space-y-1">
           <Label htmlFor="settings-external-pbx-integrations">
