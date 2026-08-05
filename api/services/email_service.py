@@ -122,12 +122,23 @@ def send_customer_appointment_confirmation(
     end_time: datetime,
     notes: Optional[str] = None,
     org_name: str = "HaviAI Voice Assistant",
+    is_emergency: bool = False,
 ) -> bool:
     """Sends confirmation email with calendar invite to customer."""
     start_formatted = start_time.strftime("%A, %B %d, %Y at %I:%M %p UTC")
 
-    subject = f"Appointment Confirmed: {appointment_title} with {org_name}"
+    if is_emergency:
+        subject = f"🚨 URGENT: Appointment Confirmed: {appointment_title} with {org_name}"
+    else:
+        subject = f"Appointment Confirmed: {appointment_title} with {org_name}"
     
+    card_border = "#dc2626" if is_emergency else "#2563eb"
+    badge_html = (
+        '<div style="background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 700; margin-bottom: 20px;">🚨 EMERGENCY PRIORITY APPOINTMENT — Our team has been alerted for priority handling.</div>'
+        if is_emergency
+        else '<div class="badge">✓ Confirmed Appointment</div>'
+    )
+
     html_body = f"""
     <!DOCTYPE html>
     <html>
@@ -135,7 +146,7 @@ def send_customer_appointment_confirmation(
         <meta charset="utf-8">
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }}
-            .card {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-top: 5px solid #2563eb; }}
+            .card {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-top: 6px solid {card_border}; }}
             .header {{ font-size: 22px; font-weight: bold; color: #1e293b; margin-bottom: 8px; }}
             .badge {{ display: inline-block; background: #dbeafe; color: #1e40af; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-bottom: 20px; }}
             .detail-row {{ margin: 12px 0; font-size: 15px; line-height: 1.6; }}
@@ -148,7 +159,7 @@ def send_customer_appointment_confirmation(
             <div class="header">Hello {customer_name or 'Valued Client'},</div>
             <p style="font-size: 16px; color: #475569;">Your appointment has been successfully scheduled!</p>
             
-            <div class="badge">✓ Confirmed Appointment</div>
+            {badge_html}
 
             <div class="detail-row">
                 <span class="detail-label">Service / Event:</span> {appointment_title}
@@ -174,8 +185,8 @@ def send_customer_appointment_confirmation(
     """
 
     ics_content = create_ics_calendar_event(
-        title=f"{appointment_title} - {org_name}",
-        description=f"Appointment with {org_name}. Notes: {notes or 'N/A'}",
+        title=f"{'🚨 EMERGENCY: ' if is_emergency else ''}{appointment_title} - {org_name}",
+        description=f"Appointment with {org_name}. Priority: {'EMERGENCY' if is_emergency else 'Normal'}. Notes: {notes or 'N/A'}",
         start_dt=start_time,
         end_dt=end_time,
     )
@@ -198,11 +209,27 @@ def send_owner_booking_notification(
     start_time: datetime,
     notes: Optional[str] = None,
     org_name: str = "Your Business",
+    is_emergency: bool = False,
 ) -> bool:
     """Sends notification email to business owner when a new booking arrives."""
     start_formatted = start_time.strftime("%A, %B %d, %Y at %I:%M %p UTC")
 
-    subject = f"🎉 New AI Booking: {customer_name or 'Client'} - {appointment_title}"
+    if is_emergency:
+        subject = f"🚨 URGENT EMERGENCY BOOKING: {customer_name or 'Client'} - {appointment_title}"
+        card_border = "#dc2626"
+        header_title = "🚨 URGENT EMERGENCY BOOKING!"
+        emergency_banner = """
+        <div style="background-color: #ef4444; color: #ffffff; padding: 14px 18px; border-radius: 8px; font-weight: bold; font-size: 16px; margin-bottom: 20px; text-align: center; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.3);">
+            🚨 EMERGENCY APPOINTMENT — IMMEDIATE ACTION REQUIRED
+        </div>
+        """
+        phone_html = f'<span style="color: #dc2626; font-weight: bold; font-size: 17px;">{customer_phone or "N/A"} 📞 (CALL CLIENT IMMEDIATELY)</span>'
+    else:
+        subject = f"🎉 New AI Booking: {customer_name or 'Client'} - {appointment_title}"
+        card_border = "#16a34a"
+        header_title = "🎉 New Appointment Booked!"
+        emergency_banner = ""
+        phone_html = f'<span>{customer_phone or "N/A"}</span>'
 
     html_body = f"""
     <!DOCTYPE html>
@@ -211,25 +238,27 @@ def send_owner_booking_notification(
         <meta charset="utf-8">
         <style>
             body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }}
-            .card {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-top: 5px solid #16a34a; }}
-            .header {{ font-size: 22px; font-weight: bold; color: #0f172a; margin-bottom: 12px; }}
-            .detail-box {{ background: #f1f5f9; padding: 16px; border-radius: 8px; margin: 16px 0; }}
-            .detail-row {{ margin: 8px 0; font-size: 15px; }}
+            .card {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-top: 6px solid {card_border}; }}
+            .header {{ font-size: 22px; font-weight: bold; color: {'#991b1b' if is_emergency else '#0f172a'}; margin-bottom: 12px; }}
+            .detail-box {{ background: {'#fef2f2' if is_emergency else '#f1f5f9'}; border: {'1px solid #fca5a5' if is_emergency else '1px solid #e2e8f0'}; padding: 18px; border-radius: 8px; margin: 16px 0; }}
+            .detail-row {{ margin: 10px 0; font-size: 15px; }}
             .detail-label {{ font-weight: 600; color: #475569; }}
             .footer {{ margin-top: 25px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #94a3b8; }}
         </style>
     </head>
     <body>
         <div class="card">
-            <div class="header">🎉 New Appointment Booked!</div>
-            <p>Your AI assistant has just booked a new appointment for <strong>{org_name}</strong>.</p>
+            {emergency_banner}
+            <div class="header">{header_title}</div>
+            <p>Your AI assistant has just booked an appointment for <strong>{org_name}</strong>.</p>
             
             <div class="detail-box">
-                <div class="detail-row"><span class="detail-label">Client Name:</span> {customer_name or 'N/A'}</div>
-                <div class="detail-row"><span class="detail-label">Client Phone:</span> {customer_phone or 'N/A'}</div>
+                <div class="detail-row"><span class="detail-label">Client Name:</span> <strong>{customer_name or 'N/A'}</strong></div>
+                <div class="detail-row"><span class="detail-label">Client Phone:</span> {phone_html}</div>
                 <div class="detail-row"><span class="detail-label">Client Email:</span> {customer_email or 'N/A'}</div>
                 <div class="detail-row"><span class="detail-label">Appointment:</span> {appointment_title}</div>
                 <div class="detail-row"><span class="detail-label">Scheduled Time:</span> <strong>{start_formatted}</strong></div>
+                {f'<div class="detail-row"><span class="detail-label">Priority:</span> <span style="color: #dc2626; font-weight: bold;">🚨 EMERGENCY</span></div>' if is_emergency else ''}
                 {f'<div class="detail-row"><span class="detail-label">Notes:</span> {notes}</div>' if notes else ''}
             </div>
 
@@ -248,3 +277,4 @@ def send_owner_booking_notification(
         subject=subject,
         html_body=html_body,
     )
+

@@ -273,6 +273,7 @@ async def book_appointment(
                 end_time=end_dt,
                 notes=req.notes,
                 org_name=org_name,
+                is_emergency=new_apt.is_emergency,
             )
 
         # 2. Dispatch Business Owner Alert Email via Background Task
@@ -287,6 +288,7 @@ async def book_appointment(
                 start_time=start_dt,
                 notes=req.notes,
                 org_name=org_name,
+                is_emergency=new_apt.is_emergency,
             )
 
         return AppointmentItemResponse(
