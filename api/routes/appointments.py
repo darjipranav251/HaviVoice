@@ -211,11 +211,6 @@ async def send_test_appointment_email(
     return {"message": f"Test email sent successfully to {req.to_email}"}
 
 
-from zoneinfo import ZoneInfo
-
-EASTERN_TZ = ZoneInfo("America/Toronto")
-
-
 @router.post("/book", response_model=AppointmentItemResponse)
 async def book_appointment(
     req: BookAppointmentRequest,
@@ -226,15 +221,10 @@ async def book_appointment(
     org_id = resolve_org_id(req.organization_id, user)
 
     start_dt = req.start_time
-    if start_dt.tzinfo is None:
-        start_dt = start_dt.replace(tzinfo=EASTERN_TZ)
-
     if not req.end_time:
         end_dt = start_dt + timedelta(minutes=30)
     else:
         end_dt = req.end_time
-        if end_dt.tzinfo is None:
-            end_dt = end_dt.replace(tzinfo=EASTERN_TZ)
 
     async with db_client.async_session() as session:
         org = await session.get(OrganizationModel, org_id)

@@ -20,17 +20,15 @@ from api.constants import (
 
 logger = logging.getLogger(__name__)
 
-EASTERN_TZ = ZoneInfo("America/Toronto")
 
-
-def format_eastern_datetime(dt: datetime) -> str:
-    """Formats datetime strictly in Canadian Eastern Time (EST/EDT) without UTC."""
+def format_utc_datetime(dt: datetime) -> str:
+    """Formats datetime in UTC."""
     if dt is None:
         return ""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    eastern_dt = dt.astimezone(EASTERN_TZ)
-    return eastern_dt.strftime("%A, %B %d, %Y at %I:%M %p %Z")
+    utc_dt = dt.astimezone(timezone.utc)
+    return utc_dt.strftime("%A, %B %d, %Y at %I:%M %p UTC")
 
 
 def is_smtp_configured() -> bool:
@@ -65,7 +63,6 @@ SUMMARY:{title}
 DESCRIPTION:{description}
 LOCATION:{location}
 STATUS:CONFIRMED
-SEQUENCE:0
 END:VEVENT
 END:VCALENDAR"""
     return ics_content.strip()
@@ -80,46 +77,40 @@ def _send_smtp_email(
 ) -> bool:
     """Sends an email using the central SMTP server."""
     if not is_smtp_configured():
-        logger.warning("SMTP is not configured. Skipping email dispatch to %s", to_email)
+        logger.error("Central SMTP is not configured. Cannot send email to %s", to_email)
         return False
 
-    sender_email = SMTP_FROM_EMAIL or SMTP_USER
-    sender_name = SMTP_FROM_NAME or "HaviAI Appointments"
-
-    msg = MIMEMultipart("mixed")
-    msg["Subject"] = subject
-    msg["From"] = f"{sender_name} <{sender_email}>"
-    msg["To"] = to_email
-
-    # Alternative part for HTML
-    msg_body = MIMEMultipart("alternative")
-    html_part = MIMEText(html_body, "html")
-    msg_body.attach(html_part)
-    msg.attach(msg_body)
-
-    # Attach ICS calendar file if provided
-    if ics_attachment:
-        part = MIMEBase("text", "calendar", method="REQUEST", name=attachment_filename)
-        part.set_payload(ics_attachment.encode("utf-8"))
-        encoders.encode_base64(part)
-        part.add_header(
-            "Content-Disposition",
-            f'attachment; filename="{attachment_filename}"',
-        )
-        msg.attach(part)
-
     try:
-        logger.info("Connecting to SMTP server %s:%s...", SMTP_HOST, SMTP_PORT)
-        if SMTP_PORT == 465:
-            server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15)
+        msg = MIMEMultipart("mixed")
+        msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+        msg["To"] = to_email
+        msg["Subject"] = subject
+
+        # HTML Body
+        msg_alternative = MIMEMultipart("alternative")
+        msg_alternative.attach(MIMEText(html_body, "html", "utf-8"))
+        msg.attach(msg_alternative)
+
+        # Attach .ics calendar event if provided
+        if ics_attachment:
+            part = MIMEBase("text", "calendar", method="REQUEST", name=attachment_filename)
+            part.set_payload(ics_attachment.encode("utf-8"))
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f"attachment; filename=\"{attachment_filename}\"")
+            part.add_header("Content-Class", "urn:content-classes:calendarmessage")
+            msg.attach(part)
+
+        port = int(SMTP_PORT or 587)
+        if SMTP_TLS:
+            server = smtplib.SMTP(SMTP_HOST, port, timeout=15)
+            server.starttls()
         else:
-            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15)
-            if SMTP_TLS:
-                server.starttls()
+            server = smtplib.SMTP(SMTP_HOST, port, timeout=15)
 
         server.login(SMTP_USER, SMTP_PASSWORD)
-        server.sendmail(sender_email, [to_email], msg.as_string())
+        server.sendmail(SMTP_FROM_EMAIL, [to_email], msg.as_string())
         server.quit()
+
         logger.info("Successfully sent appointment email to %s", to_email)
         return True
     except Exception as e:
@@ -139,7 +130,7 @@ def send_customer_appointment_confirmation(
     address: Optional[str] = None,
 ) -> bool:
     """Sends confirmation email with calendar invite to customer."""
-    start_formatted = format_eastern_datetime(start_time)
+    start_formatted = format_utc_datetime(start_time)
 
     if is_emergency:
         subject = f"🚨 URGENT: Appointment Confirmed: {appointment_title} with {org_name}"
@@ -259,7 +250,7 @@ def send_owner_booking_notification(
     address: Optional[str] = None,
 ) -> bool:
     """Sends notification email to business owner when a new booking arrives."""
-    start_formatted = format_eastern_datetime(start_time)
+    start_formatted = format_utc_datetime(start_time)
 
     if is_emergency:
         subject = f"🚨 URGENT EMERGENCY BOOKING: {customer_name or 'Client'} - {appointment_title}"
