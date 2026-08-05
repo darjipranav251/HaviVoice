@@ -224,6 +224,7 @@ async def book_appointment(
 
     async with db_client.async_session() as session:
         org = await session.get(OrganizationModel, org_id)
+        org_notification_email = org.notification_email if org else None
         if org:
             is_active, inactive_reason = is_subscription_active_for_org(org, user=user)
             if not is_active:
@@ -258,8 +259,8 @@ async def book_appointment(
         org_email = org_res.scalar_one_or_none()
         org_name = org_email.split("@")[0] if org_email else f"Org {org_id}"
 
-        # Resolve owner notification email (org.notification_email > org_email)
-        owner_target_email = getattr(org, "notification_email", None) or org_email
+        # Resolve owner notification email (org_notification_email > org_email)
+        owner_target_email = org_notification_email or org_email
 
         # 1. Dispatch Customer Confirmation Email via Background Task
         if req.client_email:
