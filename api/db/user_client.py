@@ -28,13 +28,18 @@ class UserClient(BaseDBClient):
             if user is not None:
                 return user, False
 
+            # Check if this is the very first user in a fresh/flushed database
+            count_res = await session.execute(select(func.count(UserModel.id)))
+            total_users = count_res.scalar() or 0
+            is_superuser = (total_users == 0)
+
             # Use PostgreSQL's INSERT ... ON CONFLICT DO NOTHING
             # This is atomic and handles race conditions at the database level
             stmt = insert(UserModel.__table__).values(
                 provider_id=provider_id,
                 created_at=datetime.now(timezone.utc),
                 selected_organization_id=None,  # Will be set later
-                is_superuser=False,  # Default value
+                is_superuser=is_superuser,
             )
             # ON CONFLICT DO NOTHING - if another request already inserted, this becomes a no-op
             stmt = stmt.on_conflict_do_nothing(index_elements=["provider_id"])

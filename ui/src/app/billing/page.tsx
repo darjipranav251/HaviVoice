@@ -261,7 +261,18 @@ export default function BillingPage() {
                 </div>
             </div>
 
-            {searchParams.get("lockout") === "true" && (
+            {isSuperuser && (
+                <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 dark:border-purple-900/50 dark:bg-purple-950/30 mb-2">
+                    <div className="flex items-center gap-3">
+                        <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                        <p className="text-sm font-medium text-purple-900 dark:text-purple-200">
+                            <strong>👑 SaaS Platform Owner (Super Admin)</strong> — You have full administrative access with unlimited voice minutes across all tenant organizations. No plan subscription or credit purchase is required.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {searchParams.get("lockout") === "true" && !isSuperuser && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30 mb-6">
                     <div className="flex items-center gap-3">
                         <Info className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
@@ -278,7 +289,9 @@ export default function BillingPage() {
                         <div>
                             <CardDescription>Subscription & Plan Details</CardDescription>
                             <CardTitle className="text-2xl capitalize flex items-center gap-2 mt-1">
-                                {(auth.user as any)?.current_plan 
+                                {isSuperuser
+                                    ? "SaaS Owner (Super Admin)"
+                                    : (auth.user as any)?.current_plan 
                                     ? `${formatTitleCase((auth.user as any).current_plan)} Plan`
                                     : "Standard Plan"}
                             </CardTitle>
@@ -291,18 +304,32 @@ export default function BillingPage() {
                                 </Badge>
                             )}
                             <Badge className={
-                                (auth.user as any)?.stripe_subscription_status === "active"
+                                isSuperuser
+                                    ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                                    : (auth.user as any)?.stripe_subscription_status === "active"
                                     ? "bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30 capitalize"
                                     : (auth.user as any)?.stripe_subscription_status === "trialing"
                                     ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 capitalize"
                                     : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 capitalize"
                             }>
-                                {(auth.user as any)?.stripe_subscription_status || "Trialing"}
+                                {isSuperuser ? "Unlimited Access" : (auth.user as any)?.stripe_subscription_status || "Trialing"}
                             </Badge>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        {(() => {
+                        {isSuperuser ? (
+                            <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1">
+                                <div className="flex justify-between font-medium">
+                                    <span>Account Status:</span>
+                                    <span className="text-purple-600 dark:text-purple-400 font-semibold">
+                                        Active SaaS Owner
+                                    </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                    Superadmin accounts are exempt from subscription fees and plan limits.
+                                </div>
+                            </div>
+                        ) : (() => {
                             const userObj = (auth.user as any) || {};
                             const trialEnd = userObj.trial_ends_at ? new Date(userObj.trial_ends_at) : null;
                             const cycleEnd = userObj.billing_cycle_end ? new Date(userObj.billing_cycle_end) : null;
@@ -358,7 +385,7 @@ export default function BillingPage() {
                                 onClick={() => setOpenModalCount((prev) => prev + 1)}
                             >
                                 <Sparkles className="h-4 w-4" />
-                                Manage Subscription & User Billing
+                                Manage Tenant Subscriptions & Billing
                             </Button>
                         ) : (
                             <Button className="mt-4 w-full cursor-pointer" onClick={async () => {
@@ -391,58 +418,30 @@ export default function BillingPage() {
                 </Card>
             </div>
 
-            {isOssMode && (
-                <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
-                    <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
-                    <div className="text-sm text-amber-900 dark:text-amber-200">
-                        <p className="font-medium">Credit purchases are unavailable in OSS mode</p>
-                        <p className="mt-1">
-                            You can&apos;t purchase credits from this self-hosted app. Sign up and
-                            purchase credits at{" "}
-                            <a
-                                href="https://app.dograh.com"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
-                            >
-                                app.dograh.com
-                                <ExternalLink className="h-3 w-3" />
-                            </a>
-                            . Then add the generated service key in{" "}
-                            <Link
-                                href="/model-configurations"
-                                className="font-medium underline underline-offset-2"
-                            >
-                                Model Configurations
-                            </Link>
-                            . Usage for that service key is visible in app.dograh.com.
-                        </p>
-                    </div>
-                </div>
-            )}
-
             <div className="grid gap-4 md:grid-cols-2">
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardDescription>{isOssMode ? "Credits remaining" : "Credit balance"}</CardDescription>
-                        <CardTitle className="flex items-center gap-2 text-3xl">
+                        <CardDescription>Voice Minutes Remaining</CardDescription>
+                        <CardTitle className="flex items-center gap-2 text-3xl font-bold text-emerald-600 dark:text-emerald-400">
                             <CircleDollarSign className="h-6 w-6 text-muted-foreground" />
-                            {formatCredits(remainingCredits)}
+                            {isSuperuser ? "Unlimited" : `${formatCredits(remainingCredits)} min`}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-sm text-muted-foreground">1 credit = 1 cent</p>
+                        <p className="text-sm text-muted-foreground">
+                            {isSuperuser ? "Superadmin account has unlimited voice call minutes" : "Available minutes for AI voice calls"}
+                        </p>
                     </CardContent>
                 </Card>
 
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardDescription>Credits used</CardDescription>
-                        <CardTitle className="text-3xl">{formatCredits(usedCredits)}</CardTitle>
+                        <CardDescription>Voice Minutes Used</CardDescription>
+                        <CardTitle className="text-3xl font-bold">{formatCredits(usedCredits)} min</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            {isOssMode ? "Current allocation usage" : "Total ledger debits"}
+                            Total voice minutes consumed in current cycle
                         </p>
                     </CardContent>
                 </Card>
