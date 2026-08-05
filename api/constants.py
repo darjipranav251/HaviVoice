@@ -47,7 +47,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "local")
 ENABLE_SIGNUP = os.getenv("ENABLE_SIGNUP", "true").lower() == "true"
-SUPERADMIN_EMAIL = os.getenv("SUPERADMIN_EMAIL", "pranav@grr.la").strip().lower()
+SUPERADMIN_EMAIL = os.getenv("SUPERADMIN_EMAIL", "havivoice@gmail.com").strip().lower()
 # Stack Auth public client config. These are safe to expose to the browser (the
 # publishable client key is public by design, and the project id is non-sensitive),
 # and are served to the UI at runtime via /api/v1/health so the frontend no longer

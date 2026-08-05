@@ -214,8 +214,13 @@ class UserClient(BaseDBClient):
         self, email: str, password_hash: str, name: str | None = None
     ) -> UserModel:
         """Create a new user with email and password hash."""
+        from api.constants import SUPERADMIN_EMAIL
         async with self.async_session() as session:
-            is_superuser = email.lower() == "pranav@grr.la"
+            count_res = await session.execute(select(func.count(UserModel.id)))
+            total_users = count_res.scalar() or 0
+
+            # First registered user in system OR matching SUPERADMIN_EMAIL automatically becomes superadmin (SaaS Owner)
+            is_superuser = (total_users == 0) or (email.lower() == SUPERADMIN_EMAIL)
             user = UserModel(
                 provider_id=f"oss_{int(datetime.now(timezone.utc).timestamp())}_{uuid.uuid4()}",
                 email=email.lower(),
