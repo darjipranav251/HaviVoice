@@ -50,7 +50,7 @@ export default function SignupPage() {
         body: JSON.stringify({ token: res.data.token, user: res.data.user }),
       });
 
-      window.location.href = "/auth/select-plan";
+      window.location.href = "/overview";
     } catch {
       toast.error("An error occurred. Please try again.");
     } finally {

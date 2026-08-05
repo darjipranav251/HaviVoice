@@ -51,32 +51,8 @@ export function LeadFormsProvider({ children }: { children: ReactNode }) {
   onboardingDoneRef.current = Boolean(onboardingCompletedAt) || onboardingSkipped;
 
   useEffect(() => {
-    if (authLoading || onboardingLoading || !user || onboardingCheckedRef.current) {
-      return;
-    }
-
-    onboardingCheckedRef.current = true;
-    if (onboardingDoneRef.current) return; // already done — never show
-
-    // Only brand-new users (no workflows yet) see the form. The count is
-    // org-scoped (the user's selected organization), so a new user joining an
-    // org that already has workflows is correctly grandfathered out. This costs
-    // one lightweight count query per session for users whose flag is still
-    // unset — an accepted trade for a server-authoritative, cross-device gate.
-    (async () => {
-      try {
-        const res = await getWorkflowCountApiV1WorkflowCountGet();
-        // Re-check the flag after the await: a completion elsewhere (another
-        // tab) may have stamped it while the count was in flight.
-        if (res.data?.total === 0 && !onboardingDoneRef.current) {
-          setOnboardingOpen(true);
-          posthog.capture(PostHogEvent.ONBOARDING_SHOWN);
-        }
-      } catch {
-        // If the count can't be fetched, do NOT show the modal — fail closed so
-        // existing users are never disrupted.
-      }
-    })();
+    // Post-signup onboarding survey modal is permanently disabled
+    setOnboardingOpen(false);
   }, [authLoading, onboardingLoading, user]);
 
   const completeOnboarding = useCallback((skipped: boolean) => {
