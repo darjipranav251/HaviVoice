@@ -85,6 +85,8 @@ export default function AppointmentsPage() {
   // Modal states
   const [bookModalOpen, setBookModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [unresolvedModalOpen, setUnresolvedModalOpen] = useState(false);
+  const [unresolvedAppointments, setUnresolvedAppointments] = useState<Appointment[]>([]);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [updating, setUpdating] = useState(false);
 
@@ -157,8 +159,20 @@ export default function AppointmentsPage() {
         setLoading(false);
         return;
       }
-      const data = await res.json();
+      const data: Appointment[] = await res.json();
       setAppointments(data);
+
+      // Detect unresolved past appointments still marked as "upcoming"
+      const nowMs = Date.now();
+      const pastUpcoming = data.filter((apt) => {
+        const aptEndMs = new Date(apt.end_time || apt.start_time).getTime();
+        return aptEndMs < nowMs && apt.status === "upcoming";
+      });
+
+      if (pastUpcoming.length > 0) {
+        setUnresolvedAppointments(pastUpcoming);
+        setUnresolvedModalOpen(true);
+      }
     } catch (err) {
       console.error(err);
       setAppointments([]);
@@ -177,6 +191,12 @@ export default function AppointmentsPage() {
     const selectedTime = selectInfo.startStr.includes("T")
       ? selectInfo.startStr.split("T")[1].substring(0, 5)
       : "10:00";
+
+    const selectedDateTime = new Date(`${selectedDate}T${selectedTime}:00`);
+    if (selectedDateTime.getTime() < Date.now() - 300000) {
+      toast.error("Cannot book appointments for past dates or times.");
+      return;
+    }
 
     setBookingForm({
       client_name: "",
@@ -207,6 +227,12 @@ export default function AppointmentsPage() {
   const handleCreateBooking = async () => {
     if (!bookingForm.client_name || !bookingForm.start_date) {
       toast.error("Please provide client name and start date");
+      return;
+    }
+
+    const startDateTime = new Date(`${bookingForm.start_date}T${bookingForm.start_time}:00`);
+    if (startDateTime.getTime() < Date.now() - 300000) {
+      toast.error("Cannot schedule an appointment in the past. Please select a future date and time.");
       return;
     }
 
@@ -291,12 +317,67 @@ export default function AppointmentsPage() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to delete appointment");
       toast.success("Appointment deleted");
       setDetailModalOpen(false);
       fetchAppointments();
     } catch (err) {
       toast.error("Error deleting appointment");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Handle resolving individual unresolved past appointment
+  const handleResolvePastStatus = async (aptId: number, newStatus: "completed" | "no_show" | "cancelled") => {
+    setUpdating(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/v1/appointments/${aptId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (res.ok) {
+        toast.success(`Appointment status updated to ${newStatus.replace("_", " ")}`);
+        setUnresolvedAppointments((prev) => prev.filter((a) => a.id !== aptId));
+        if (unresolvedAppointments.length <= 1) {
+          setUnresolvedModalOpen(false);
+        }
+        fetchAppointments();
+      }
+    } catch (err) {
+      toast.error("Failed to update status");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Handle batch marking all unresolved past appointments as completed
+  const handleResolveAllCompleted = async () => {
+    setUpdating(true);
+    try {
+      const token = await getAccessToken();
+      await Promise.all(
+        unresolvedAppointments.map((apt) =>
+          fetch(`/api/v1/appointments/${apt.id}/status`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status: "completed" }),
+          })
+        )
+      );
+      toast.success("All past appointments marked as completed!");
+      setUnresolvedAppointments([]);
+      setUnresolvedModalOpen(false);
+      fetchAppointments();
+    } catch (err) {
+      toast.error("Error batch updating appointments");
     } finally {
       setUpdating(false);
     }
@@ -596,6 +677,7 @@ export default function AppointmentsPage() {
                 <label className="text-xs font-semibold text-muted-foreground">Date *</label>
                 <Input
                   type="date"
+                  min={new Date().toISOString().split("T")[0]}
                   value={bookingForm.start_date}
                   onChange={(e) => setBookingForm({ ...bookingForm, start_date: e.target.value })}
                   className="mt-1"
@@ -797,6 +879,94 @@ export default function AppointmentsPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Unresolved Past Appointments Prompt Modal */}
+      <Dialog open={unresolvedModalOpen} onOpenChange={setUnresolvedModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              Unresolved Past Appointments ({unresolvedAppointments.length})
+            </DialogTitle>
+            <DialogDescription>
+              The following appointments have passed their scheduled date & time. Please update their final status to keep your reporting clean.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-80 overflow-y-auto space-y-3 py-2 pr-1">
+            {unresolvedAppointments.map((apt) => (
+              <div
+                key={apt.id}
+                className="p-3 rounded-lg border bg-muted/30 flex flex-col gap-2 text-sm"
+              >
+                <div className="flex items-center justify-between font-semibold">
+                  <span>{apt.title}</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {new Date(apt.start_time).toLocaleString("en-US", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Client: <strong className="text-foreground">{apt.client_name}</strong> {apt.client_phone ? `(${apt.client_phone})` : ""}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleResolvePastStatus(apt.id, "completed")}
+                    disabled={updating}
+                    className="h-7 text-xs gap-1 border-blue-500/40 text-blue-500 hover:bg-blue-500/10"
+                  >
+                    <CheckCircle2 className="h-3 w-3" />
+                    Completed
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleResolvePastStatus(apt.id, "no_show")}
+                    disabled={updating}
+                    className="h-7 text-xs gap-1 border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    No-Show
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleResolvePastStatus(apt.id, "cancelled")}
+                    disabled={updating}
+                    className="h-7 text-xs gap-1 text-muted-foreground"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    Cancelled
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResolveAllCompleted}
+              disabled={updating}
+              className="text-xs border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+              Mark All Completed
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setUnresolvedModalOpen(false)}>
+              Remind Later
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

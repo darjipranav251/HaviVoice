@@ -221,6 +221,14 @@ async def book_appointment(
     org_id = resolve_org_id(req.organization_id, user)
 
     start_dt = req.start_time
+    now = datetime.now(timezone.utc)
+    check_dt = start_dt if start_dt.tzinfo else start_dt.replace(tzinfo=timezone.utc)
+    if check_dt < (now - timedelta(minutes=5)):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot schedule an appointment for a past date or time. Please select a future time slot.",
+        )
+
     if not req.end_time:
         end_dt = start_dt + timedelta(minutes=30)
     else:
