@@ -21,6 +21,7 @@ from api.schemas.workflow import WorkflowRunResponseSchema
 from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user, get_superuser
+from api.services.billing_guard import check_billing_guard
 from api.services.configuration.ai_model_configuration import (
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
     check_for_masked_keys_in_ai_model_configuration_v2,
@@ -1374,7 +1375,7 @@ async def duplicate_workflow_endpoint(
 async def create_workflow_run(
     workflow_id: int,
     request: CreateWorkflowRunRequest,
-    user: UserModel = Depends(get_user),
+    user: UserModel = Depends(check_billing_guard),
 ) -> CreateWorkflowRunResponse:
     """
     Create a new workflow run when the user decides to execute the workflow via chat or voice

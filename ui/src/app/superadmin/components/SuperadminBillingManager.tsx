@@ -46,7 +46,7 @@ export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, 
   // Edit form state
   const [formState, setFormState] = useState({
     current_plan: "free",
-    stripe_subscription_status: "active",
+    stripe_subscription_status: "trialing",
     trial_ends_at: "",
     billing_cycle_start: "",
     billing_cycle_end: "",
@@ -114,7 +114,7 @@ export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, 
 
     setFormState({
       current_plan: tenant.current_plan || "free",
-      stripe_subscription_status: tenant.stripe_subscription_status || "active",
+      stripe_subscription_status: tenant.stripe_subscription_status || "trialing",
       trial_ends_at: formatForInput(tenant.trial_ends_at),
       billing_cycle_start: formatForInput(tenant.billing_cycle_start),
       billing_cycle_end: formatForInput(tenant.billing_cycle_end),

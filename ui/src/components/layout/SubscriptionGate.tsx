@@ -31,14 +31,17 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
     const status = (localUser.stripe_subscription_status || "").toLowerCase();
     const isExplicitlyInactive = ["unpaid", "inactive", "past_due", "canceled", "cancelled", "expired"].includes(status);
 
-    const hasValidSubscription = (status === "active" || status === "trialing" || status === "manual") && !isExplicitlyInactive;
+    const hasActivePaidPlan = status === "active" || status === "manual";
 
     let trialActive = false;
     if (localUser.trial_ends_at) {
       trialActive = new Date(localUser.trial_ends_at) > new Date();
     }
 
-    if (isExplicitlyInactive || (!trialActive && !hasValidSubscription)) {
+    const isTrialValid = (status === "trialing" || !status) && trialActive;
+    const isAuthorized = !isExplicitlyInactive && (hasActivePaidPlan || isTrialValid);
+
+    if (!isAuthorized) {
       setIsLockedOut(true);
       router.push("/billing?lockout=true");
     } else {

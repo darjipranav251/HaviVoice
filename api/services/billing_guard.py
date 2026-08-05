@@ -6,8 +6,11 @@ Enforces feature access rules: users with unpaid, inactive, past_due, or cancele
 
 from datetime import datetime, timezone
 from typing import Optional, Tuple
+from fastapi import Depends, HTTPException, status as status_code
 from loguru import logger
+
 from api.db.models import OrganizationModel, UserModel
+from api.services.auth.depends import get_user
 
 INACTIVE_SUBSCRIPTION_STATUSES = {
     "unpaid",
@@ -42,12 +45,40 @@ def is_subscription_active_for_org(
 
     # Handle trialing or un-set subscription status
     if status == "trialing" or not status:
-        if org.trial_ends_at:
-            now = datetime.now(timezone.utc)
-            trial_end = org.trial_ends_at
-            if trial_end.tzinfo is None:
-                trial_end = trial_end.replace(tzinfo=timezone.utc)
-            if now > trial_end:
-                return False, "Free trial has expired. Please subscribe to a plan in Billing settings."
+        if not org.trial_ends_at:
+            return False, "Free trial has expired. Please subscribe to a plan in Billing settings."
 
-    return True, ""
+        now = datetime.now(timezone.utc)
+        trial_end = org.trial_ends_at
+        if trial_end.tzinfo is None:
+            trial_end = trial_end.replace(tzinfo=timezone.utc)
+        if now > trial_end:
+            return False, "Free trial has expired. Please subscribe to a plan in Billing settings."
+        return True, ""
+
+    if status in ("active", "manual"):
+        return True, ""
+
+    return False, "Active subscription required. Please update your plan in Billing settings."
+
+
+async def check_billing_guard(user: UserModel = Depends(get_user)) -> UserModel:
+    """
+    FastAPI dependency to enforce active subscription or trial.
+    Raises HTTP 402 Payment Required if trial has expired or subscription is inactive.
+    """
+    if getattr(user, "is_superuser", False):
+        return user
+
+    if not user.selected_organization_id:
+        return user
+
+    from api.db import db_client
+    org = await db_client.get_organization_by_id(user.selected_organization_id)
+    is_active, reason = is_subscription_active_for_org(org, user)
+    if not is_active:
+        raise HTTPException(
+            status_code=status_code.HTTP_402_PAYMENT_REQUIRED,
+            detail=reason or "Free trial has expired. Please subscribe to a plan in Billing settings."
+        )
+    return user
