@@ -1,11 +1,12 @@
 import logging
 import smtplib
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email import encoders
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from api.constants import (
     SMTP_HOST,
@@ -18,6 +19,18 @@ from api.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+EASTERN_TZ = ZoneInfo("America/Toronto")
+
+
+def format_eastern_datetime(dt: datetime) -> str:
+    """Formats datetime strictly in Canadian Eastern Time (EST/EDT) without UTC."""
+    if dt is None:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    eastern_dt = dt.astimezone(EASTERN_TZ)
+    return eastern_dt.strftime("%A, %B %d, %Y at %I:%M %p %Z")
 
 
 def is_smtp_configured() -> bool:
@@ -55,7 +68,7 @@ STATUS:CONFIRMED
 SEQUENCE:0
 END:VEVENT
 END:VCALENDAR"""
-    return ics_content
+    return ics_content.strip()
 
 
 def _send_smtp_email(
@@ -63,7 +76,7 @@ def _send_smtp_email(
     subject: str,
     html_body: str,
     ics_attachment: Optional[str] = None,
-    attachment_filename: str = "appointment.ics",
+    attachment_filename: str = "appointment_confirmation.ics",
 ) -> bool:
     """Sends an email using the central SMTP server."""
     if not is_smtp_configured():
@@ -126,7 +139,7 @@ def send_customer_appointment_confirmation(
     address: Optional[str] = None,
 ) -> bool:
     """Sends confirmation email with calendar invite to customer."""
-    start_formatted = start_time.strftime("%A, %B %d, %Y at %I:%M %p UTC")
+    start_formatted = format_eastern_datetime(start_time)
 
     if is_emergency:
         subject = f"🚨 URGENT: Appointment Confirmed: {appointment_title} with {org_name}"
@@ -246,7 +259,7 @@ def send_owner_booking_notification(
     address: Optional[str] = None,
 ) -> bool:
     """Sends notification email to business owner when a new booking arrives."""
-    start_formatted = start_time.strftime("%A, %B %d, %Y at %I:%M %p UTC")
+    start_formatted = format_eastern_datetime(start_time)
 
     if is_emergency:
         subject = f"🚨 URGENT EMERGENCY BOOKING: {customer_name or 'Client'} - {appointment_title}"

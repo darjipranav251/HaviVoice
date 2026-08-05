@@ -717,9 +717,10 @@ export default function AppointmentsPage() {
                   <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span>
                     {new Date(selectedAppointment.start_time).toLocaleString("en-US", {
+                      timeZone: "America/Toronto",
                       dateStyle: "medium",
                       timeStyle: "short",
-                    })}
+                    })} (Eastern Time)
                   </span>
                 </div>
 
