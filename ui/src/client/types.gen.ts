@@ -5382,6 +5382,14 @@ export type SignupRequest = {
      * Name
      */
     name?: string | null;
+    mobile_number?: string | null;
+    business_name?: string | null;
+    business_type?: string | null;
+    address_street?: string | null;
+    address_city?: string | null;
+    address_state?: string | null;
+    address_zip?: string | null;
+    address_country?: string | null;
 };
 
 /**

@@ -10,6 +10,8 @@ interface Tenant {
   organization_id: number;
   email: string;
   name: string;
+  business_name?: string;
+  business_type?: string;
 }
 
 export function SuperadminTenantSwitcher() {
@@ -71,7 +73,8 @@ export function SuperadminTenantSwitcher() {
         });
         if (!res.ok) throw new Error("Failed to switch context");
         const selectedTenant = tenants.find(t => t.organization_id === orgId);
-        toast.success(`Switched context to ${selectedTenant?.email || `Org ${orgId}`}`);
+        const displayName = selectedTenant?.business_name || selectedTenant?.name || selectedTenant?.email || `Org ${orgId}`;
+        toast.success(`Switched context to ${displayName}`);
       }
 
       // Sync the new organization selection back to the Next.js auth cookie so SSR has the correct context
@@ -103,15 +106,15 @@ export function SuperadminTenantSwitcher() {
   if (!isSuperuser) return null;
 
   // Determine if currently in shifted/tenant mode
-  // The first tenant in the list is usually the superadmin's own default one, but let's check
-  // if the current active org ID belongs to a non-admin tenant or if we should support reset
   const isGlobalView = !tenants.some(t => t.organization_id === currentOrgId && t.email === (user as any)?.email);
 
   const availableTenants = tenants.filter(t => t.email !== (user as any)?.email);
   const filteredTenants = availableTenants.filter(
     (t) =>
       t.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.business_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.business_type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       String(t.organization_id).includes(searchQuery)
   );
 
@@ -139,7 +142,7 @@ export function SuperadminTenantSwitcher() {
           {availableTenants.length > 5 && (
             <input
               type="text"
-              placeholder="Search 100+ tenants..."
+              placeholder="Search by business name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-cta"
@@ -153,11 +156,14 @@ export function SuperadminTenantSwitcher() {
             className="w-full rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground shadow-sm outline-none focus:border-cta disabled:opacity-50"
           >
             <option value="global">🌐 Global System View</option>
-            {filteredTenants.map((t) => (
-              <option key={t.organization_id} value={t.organization_id}>
-                👤 {t.email} (Org {t.organization_id})
-              </option>
-            ))}
+            {filteredTenants.map((t) => {
+              const labelName = t.business_name || t.name || `Org ${t.organization_id}`;
+              return (
+                <option key={t.organization_id} value={t.organization_id}>
+                  🏢 {labelName} ({t.email})
+                </option>
+              );
+            })}
           </select>
         </div>
       )}

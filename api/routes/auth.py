@@ -43,12 +43,21 @@ async def signup(request: SignupRequest):
         email=request.email,
         password_hash=hashed,
         name=request.name,
+        mobile_number=request.mobile_number,
     )
 
     # Create organization for the user
     org_provider_id = f"org_{user.provider_id}"
     organization, _ = await db_client.get_or_create_organization_by_provider_id(
-        org_provider_id=org_provider_id, user_id=user.id
+        org_provider_id=org_provider_id,
+        user_id=user.id,
+        name=request.business_name,
+        business_type=request.business_type,
+        address_street=request.address_street,
+        address_city=request.address_city,
+        address_state=request.address_state,
+        address_zip=request.address_zip,
+        address_country=request.address_country,
     )
 
     # Link user to organization

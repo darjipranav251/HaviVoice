@@ -36,6 +36,8 @@ interface Tenant {
   organization_id: number;
   email: string;
   name: string;
+  business_name?: string;
+  business_type?: string;
 }
 
 interface Stats {
@@ -63,10 +65,11 @@ export default function OverviewPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<BreakdownCategory>("usage");
 
-  // Pagination State
+  // Pagination state for System Accounts table
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 8;
 
+  // Track active tenant view
   const currentOrgId = (user as any)?.organizationId ? parseInt((user as any).organizationId, 10) : null;
   // If the active org ID belongs to a non-admin tenant, we are in "Admin Mode"
   const isGlobalView = !tenants.some(
@@ -76,14 +79,14 @@ export default function OverviewPage() {
   useEffect(() => {
     if (!isSuperuser) return;
 
-    const fetchAdminData = async () => {
+    const fetchOverviewData = async () => {
       try {
         const token = await getAccessToken();
         const headers = { Authorization: `Bearer ${token}` };
 
-        // Fetch aggregated statistics
+        // Fetch overall stats
         const statsRes = await fetch("/api/v1/superuser/overview-stats", { headers });
-        if (!statsRes.ok) throw new Error("Failed to load statistics");
+        if (!statsRes.ok) throw new Error("Failed to load stats");
         const statsData = await statsRes.json();
         setStats(statsData);
 
@@ -93,14 +96,13 @@ export default function OverviewPage() {
         const tenantsData = await tenantsRes.json();
         setTenants(tenantsData);
       } catch (err) {
-        toast.error("Error loading administration data");
-        console.error("Overview admin fetch error:", err);
+        console.error("Error loading overview data:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAdminData();
+    fetchOverviewData();
   }, [isSuperuser, getAccessToken]);
 
   // Reset pagination to first page when search criteria updates
@@ -121,8 +123,7 @@ export default function OverviewPage() {
         body: JSON.stringify({ organization_id: orgId }),
       });
       if (!res.ok) throw new Error("Failed to switch context");
-
-      // Sync the new organization selection back to the Next.js auth cookie so SSR has the correct context
+      
       const userRes = await fetch("/api/v1/user/auth/user", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -141,8 +142,7 @@ export default function OverviewPage() {
       }
 
       toast.success(`Switched context to ${email}`);
-      // Redirect to user's Voice Agents page directly
-      window.location.href = "/workflow";
+      window.location.reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error switching context");
       setSwitchingId(null);
@@ -153,7 +153,9 @@ export default function OverviewPage() {
     (t) =>
       t.email !== (user as any)?.email && (
         t.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.business_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         t.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.business_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         String(t.organization_id).includes(searchTerm)
       )
   );
@@ -371,9 +373,14 @@ export default function OverviewPage() {
                               {tenant.organization_id}
                             </td>
                             <td className="px-6 py-4">
-                              <span className="font-semibold text-foreground">
-                                {tenant.email}
-                              </span>
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-foreground">
+                                  {tenant.business_name || tenant.name || tenant.email}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-normal">
+                                  {tenant.email}{tenant.business_type ? ` • ${tenant.business_type}` : ""}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-6 py-4 text-right">
                               <Button

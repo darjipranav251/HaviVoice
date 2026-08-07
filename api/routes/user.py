@@ -45,11 +45,21 @@ router = APIRouter(prefix="/user")
 
 class AuthUserResponse(TypedDict):
     id: int
+    email: Optional[str]
+    name: Optional[str]
+    mobile_number: Optional[str]
     is_superuser: bool
     trial_ends_at: Optional[str]
     current_plan: Optional[str]
     stripe_subscription_status: Optional[str]
     organization_id: Optional[int]
+    business_name: Optional[str]
+    business_type: Optional[str]
+    address_street: Optional[str]
+    address_city: Optional[str]
+    address_state: Optional[str]
+    address_zip: Optional[str]
+    address_country: Optional[str]
 
 
 class DefaultConfigurationsResponse(BaseModel):
@@ -101,6 +111,14 @@ async def get_auth_user(
     billing_cycle_start = None
     billing_cycle_end = None
     
+    business_name = None
+    business_type = None
+    address_street = None
+    address_city = None
+    address_state = None
+    address_zip = None
+    address_country = None
+
     if user.selected_organization_id:
         org = await db_client.get_organization_by_id(user.selected_organization_id)
         if org:
@@ -109,9 +127,19 @@ async def get_auth_user(
             stripe_subscription_status = org.stripe_subscription_status
             billing_cycle_start = org.billing_cycle_start.isoformat() if org.billing_cycle_start else None
             billing_cycle_end = org.billing_cycle_end.isoformat() if org.billing_cycle_end else None
+            business_name = org.name
+            business_type = org.business_type
+            address_street = org.address_street
+            address_city = org.address_city
+            address_state = org.address_state
+            address_zip = org.address_zip
+            address_country = org.address_country
 
     return {
         "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "mobile_number": user.mobile_number,
         "is_superuser": user.is_superuser,
         "trial_ends_at": trial_ends_at,
         "current_plan": current_plan,
@@ -119,6 +147,13 @@ async def get_auth_user(
         "billing_cycle_start": billing_cycle_start,
         "billing_cycle_end": billing_cycle_end,
         "organization_id": user.selected_organization_id,
+        "business_name": business_name,
+        "business_type": business_type,
+        "address_street": address_street,
+        "address_city": address_city,
+        "address_state": address_state,
+        "address_zip": address_zip,
+        "address_country": address_country,
     }
 
 

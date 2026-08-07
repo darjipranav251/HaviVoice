@@ -43,7 +43,16 @@ class OrganizationClient(BaseDBClient):
             return list(result.scalars().all())
 
     async def get_or_create_organization_by_provider_id(
-        self, org_provider_id: str, user_id: int
+        self,
+        org_provider_id: str,
+        user_id: int,
+        name: str | None = None,
+        business_type: str | None = None,
+        address_street: str | None = None,
+        address_city: str | None = None,
+        address_state: str | None = None,
+        address_zip: str | None = None,
+        address_country: str | None = None,
     ) -> tuple[OrganizationModel, bool]:
         """Get an existing organization by provider_id or create a new one.
 
@@ -65,8 +74,16 @@ class OrganizationClient(BaseDBClient):
                 # This is atomic and handles race conditions at the database level
 
                 stmt = insert(OrganizationModel.__table__).values(
-                    provider_id=org_provider_id, created_at=datetime.now(timezone.utc),
-                    trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14)
+                    provider_id=org_provider_id,
+                    created_at=datetime.now(timezone.utc),
+                    trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
+                    name=name,
+                    business_type=business_type,
+                    address_street=address_street,
+                    address_city=address_city,
+                    address_state=address_state,
+                    address_zip=address_zip,
+                    address_country=address_country,
                 )
                 # ON CONFLICT DO NOTHING - if another request already inserted, this becomes a no-op
                 stmt = stmt.on_conflict_do_nothing(index_elements=["provider_id"])

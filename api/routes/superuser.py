@@ -208,6 +208,8 @@ class TenantResponse(BaseModel):
     organization_id: int
     email: Optional[str]
     name: Optional[str]
+    business_name: Optional[str] = None
+    business_type: Optional[str] = None
 
 
 class SelectTenantRequest(BaseModel):
@@ -222,21 +224,23 @@ async def list_tenants(user: UserModel = Depends(get_superuser)):
         from sqlalchemy import select
 
         stmt = (
-            select(OrganizationModel.id, UserModel.email)
+            select(OrganizationModel, UserModel.email)
             .join(organization_users_association, OrganizationModel.id == organization_users_association.c.organization_id)
             .join(UserModel, organization_users_association.c.user_id == UserModel.id)
-            .order_by(UserModel.email)
+            .order_by(OrganizationModel.id.asc())
         )
         result = await session.execute(stmt)
         rows = result.all()
 
         return [
             TenantResponse(
-                organization_id=row[0],
-                email=row[1],
-                name=row[1].split("@")[0] if row[1] else f"Org {row[0]}"
+                organization_id=org.id,
+                email=email,
+                name=org.name if org.name else (email.split("@")[0] if email else f"Org {org.id}"),
+                business_name=org.name,
+                business_type=org.business_type,
             )
-            for row in rows
+            for org, email in rows
         ]
 
 
@@ -244,6 +248,8 @@ class TenantBillingDetailsResponse(BaseModel):
     organization_id: int
     email: Optional[str]
     name: Optional[str]
+    business_name: Optional[str] = None
+    business_type: Optional[str] = None
     stripe_customer_id: Optional[str]
     stripe_subscription_id: Optional[str]
     stripe_subscription_status: Optional[str]
@@ -290,7 +296,9 @@ async def list_tenants_billing(user: UserModel = Depends(get_superuser)):
                 TenantBillingDetailsResponse(
                     organization_id=org.id,
                     email=email,
-                    name=email.split("@")[0] if email else f"Tenant #{org.id}",
+                    name=org.name if org.name else (email.split("@")[0] if email else f"Tenant #{org.id}"),
+                    business_name=org.name,
+                    business_type=org.business_type,
                     stripe_customer_id=org.stripe_customer_id,
                     stripe_subscription_id=org.stripe_subscription_id,
                     stripe_subscription_status=org.stripe_subscription_status or "active",
@@ -607,6 +615,8 @@ class AppointmentBreakdownItem(BaseModel):
 class TenantBreakdownItem(BaseModel):
     organization_id: int
     email: str
+    business_name: Optional[str] = None
+    business_type: Optional[str] = None
     created_at: Optional[str]
     trial_ends_at: Optional[str]
     current_plan: Optional[str]
@@ -758,6 +768,8 @@ async def get_overview_breakdown(
                 results.append(TenantBreakdownItem(
                     organization_id=org.id,
                     email=email or f"Org {org.id}",
+                    business_name=org.name,
+                    business_type=org.business_type,
                     created_at=org.created_at.isoformat() if org.created_at else None,
                     trial_ends_at=org.trial_ends_at.isoformat() if org.trial_ends_at else None,
                     current_plan=org.current_plan or "Standard Trial",

@@ -69,6 +69,7 @@ class UserModel(Base):
     )
     is_superuser = Column(Boolean, default=False)
     email = Column(String, nullable=True)
+    mobile_number = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
 
     __table_args__ = (
@@ -160,8 +161,16 @@ class OrganizationModel(Base):
     custom_monthly_minutes = Column(Float, nullable=True)
     custom_max_concurrency = Column(Integer, nullable=True)
     billing_cycle_start = Column(DateTime(timezone=True), nullable=True)
-    billing_cycle_end = Column(DateTime(timezone=True), nullable=True)
     notification_email = Column(String, nullable=True)
+
+    # Business Profile & Address
+    name = Column(String, nullable=True)
+    business_type = Column(String, nullable=True)
+    address_street = Column(String, nullable=True)
+    address_city = Column(String, nullable=True)
+    address_state = Column(String, nullable=True)
+    address_zip = Column(String, nullable=True)
+    address_country = Column(String, nullable=True)
 
     # Relationships
     users = relationship(

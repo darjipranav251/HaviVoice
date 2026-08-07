@@ -5,6 +5,14 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str
     name: str | None = None
+    mobile_number: str | None = None
+    business_name: str | None = None
+    business_type: str | None = None
+    address_street: str | None = None
+    address_city: str | None = None
+    address_state: str | None = None
+    address_zip: str | None = None
+    address_country: str | None = None
 
     @field_validator("password")
     @classmethod

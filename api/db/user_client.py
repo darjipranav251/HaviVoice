@@ -209,7 +209,7 @@ class UserClient(BaseDBClient):
             return result.scalars().first()
 
     async def create_user_with_email(
-        self, email: str, password_hash: str, name: str | None = None
+        self, email: str, password_hash: str, name: str | None = None, mobile_number: str | None = None
     ) -> UserModel:
         """Create a new user with email and password hash."""
         from api.constants import SUPERADMIN_EMAIL
@@ -219,6 +219,7 @@ class UserClient(BaseDBClient):
             user = UserModel(
                 provider_id=f"oss_{int(datetime.now(timezone.utc).timestamp())}_{uuid.uuid4()}",
                 email=email.lower(),
+                mobile_number=mobile_number,
                 password_hash=password_hash,
                 is_superuser=is_superuser,
             )

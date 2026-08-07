@@ -17,6 +17,8 @@ export interface TenantBillingDetails {
   organization_id: number;
   email: string | null;
   name: string | null;
+  business_name?: string | null;
+  business_type?: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   stripe_subscription_status: string | null;
@@ -258,8 +260,13 @@ export function SuperadminBillingManager({ activeOrgId, autoOpenActiveOrgModal, 
                   <tr key={t.organization_id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-medium">
                       <div className="flex flex-col">
-                        <span className="text-foreground font-semibold">{t.email || `Tenant #${t.organization_id}`}</span>
-                        <span className="text-xs text-muted-foreground">Org ID: {t.organization_id}</span>
+                        <span className="text-foreground font-semibold">
+                          {t.business_name || t.name || t.email || `Tenant #${t.organization_id}`}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t.email ? `${t.email} • ` : ""}Org ID: {t.organization_id}
+                          {t.business_type ? ` • ${t.business_type}` : ""}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3">{getPlanBadge(t.current_plan)}</td>

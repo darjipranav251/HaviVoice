@@ -118,6 +118,9 @@ export function SuperadminBreakdownModal({
     (item) =>
       item.email !== (user as any)?.email &&
       (item.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.business_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.business_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         String(item.organization_id).includes(searchTerm))
   );
 
@@ -236,7 +239,16 @@ export function SuperadminBreakdownModal({
                     paginatedData.map((item) => (
                       <tr key={item.organization_id} className="hover:bg-muted/10 transition-colors">
                         <td className="px-4 py-3 font-mono font-medium">{item.organization_id}</td>
-                        <td className="px-4 py-3 font-semibold text-foreground">{item.email}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-foreground">
+                              {item.business_name || item.name || item.email}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-normal">
+                              {item.email}{item.business_type ? ` • ${item.business_type}` : ""}
+                            </span>
+                          </div>
+                        </td>
 
                         {activeCategory === "usage" && (
                           <>
