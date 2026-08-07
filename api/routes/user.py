@@ -139,7 +139,8 @@ async def get_auth_user(
             current_plan = org.current_plan or ("Superadmin Unlimited" if is_super else "Standard Trial")
             stripe_subscription_status = org.stripe_subscription_status or ("active" if is_super else "trialing")
             billing_cycle_start = org.billing_cycle_start.isoformat() if org.billing_cycle_start else None
-            billing_cycle_end = org.billing_cycle_end.isoformat() if org.billing_cycle_end else None
+            b_end = getattr(org, "billing_cycle_end", None)
+            billing_cycle_end = b_end.isoformat() if b_end else None
             business_name = org.name
             business_type = org.business_type
             address_street = org.address_street
@@ -155,7 +156,7 @@ async def get_auth_user(
     return {
         "id": user.id,
         "email": user.email,
-        "name": user.name,
+        "name": getattr(user, "name", None),
         "mobile_number": user.mobile_number,
         "is_superuser": is_super,
         "trial_ends_at": trial_ends_at,
