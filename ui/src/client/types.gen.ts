@@ -6743,6 +6743,10 @@ export type UserResponse = {
      * Provider Id
      */
     provider_id?: string | null;
+    is_superuser?: boolean;
+    trial_ends_at?: string | null;
+    current_plan?: string | null;
+    stripe_subscription_status?: string | null;
 };
 
 /**

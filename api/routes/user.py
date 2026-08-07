@@ -105,6 +105,19 @@ async def get_default_configurations() -> DefaultConfigurationsResponse:
 async def get_auth_user(
     user: UserModel = Depends(get_user),
 ) -> AuthUserResponse:
+    from api.constants import SUPERADMIN_EMAIL
+    
+    # Ensure superadmin user gets is_superuser flag set
+    is_super = user.is_superuser or (user.email and user.email.lower() == SUPERADMIN_EMAIL)
+    if is_super and not user.is_superuser:
+        user.is_superuser = True
+        async with db_client.async_session() as session:
+            from sqlalchemy import update
+            await session.execute(
+                update(UserModel).where(UserModel.id == user.id).values(is_superuser=True)
+            )
+            await session.commit()
+
     trial_ends_at = None
     current_plan = None
     stripe_subscription_status = None
@@ -122,9 +135,9 @@ async def get_auth_user(
     if user.selected_organization_id:
         org = await db_client.get_organization_by_id(user.selected_organization_id)
         if org:
-            trial_ends_at = org.trial_ends_at.isoformat() if org.trial_ends_at else None
-            current_plan = org.current_plan
-            stripe_subscription_status = org.stripe_subscription_status
+            trial_ends_at = org.trial_ends_at.isoformat() if org.trial_ends_at else (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+            current_plan = org.current_plan or ("Superadmin Unlimited" if is_super else "Standard Trial")
+            stripe_subscription_status = org.stripe_subscription_status or ("active" if is_super else "trialing")
             billing_cycle_start = org.billing_cycle_start.isoformat() if org.billing_cycle_start else None
             billing_cycle_end = org.billing_cycle_end.isoformat() if org.billing_cycle_end else None
             business_name = org.name
@@ -135,15 +148,19 @@ async def get_auth_user(
             address_zip = org.address_zip
             address_country = org.address_country
 
+    if is_super:
+        stripe_subscription_status = "active"
+        current_plan = "Superadmin Plan"
+
     return {
         "id": user.id,
         "email": user.email,
         "name": user.name,
         "mobile_number": user.mobile_number,
-        "is_superuser": user.is_superuser,
+        "is_superuser": is_super,
         "trial_ends_at": trial_ends_at,
-        "current_plan": current_plan,
-        "stripe_subscription_status": stripe_subscription_status,
+        "current_plan": current_plan or "Standard Trial",
+        "stripe_subscription_status": stripe_subscription_status or "trialing",
         "billing_cycle_start": billing_cycle_start,
         "billing_cycle_end": billing_cycle_end,
         "organization_id": user.selected_organization_id,

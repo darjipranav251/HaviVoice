@@ -77,6 +77,8 @@ class OrganizationClient(BaseDBClient):
                     provider_id=org_provider_id,
                     created_at=datetime.now(timezone.utc),
                     trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
+                    stripe_subscription_status="trialing",
+                    current_plan="Standard Trial",
                     name=name,
                     business_type=business_type,
                     address_street=address_street,

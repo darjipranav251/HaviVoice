@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { signupApiV1AuthSignupPost } from "@/client/sdk.gen";
@@ -10,25 +10,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-const COUNTRY_CODES = [
-  { code: "+1", label: "🇺🇸/🇨🇦 +1 (US/Canada)" },
-  { code: "+44", label: "🇬🇧 +44 (UK)" },
-  { code: "+91", label: "🇮🇳 +91 (India)" },
-  { code: "+61", label: "🇦🇺 +61 (Australia)" },
-  { code: "+49", label: "🇩🇪 +49 (Germany)" },
-  { code: "+33", label: "🇫🇷 +33 (France)" },
-  { code: "+81", label: "🇯🇵 +81 (Japan)" },
-  { code: "+971", label: "🇦🇪 +971 (UAE)" },
-  { code: "+52", label: "🇲🇽 +52 (Mexico)" },
-  { code: "+55", label: "🇧🇷 +55 (Brazil)" },
-  { code: "+39", label: "🇮🇹 +39 (Italy)" },
-  { code: "+34", label: "🇪🇸 +34 (Spain)" },
-  { code: "+31", label: "🇳🇱 +31 (Netherlands)" },
-  { code: "+64", label: "🇳🇿 +64 (New Zealand)" },
-  { code: "+65", label: "🇸🇬 +65 (Singapore)" },
-  { code: "+27", label: "🇿🇦 +27 (South Africa)" },
-];
+import { ALL_COUNTRIES, STATES_BY_COUNTRY } from "@/lib/countriesData";
 
 const SME_BUSINESS_TYPES = [
   "Dental Clinic",
@@ -53,27 +35,6 @@ const SME_BUSINESS_TYPES = [
   "Other Local SME",
 ];
 
-const COUNTRIES = [
-  "United States",
-  "Canada",
-  "United Kingdom",
-  "India",
-  "Australia",
-  "Germany",
-  "France",
-  "Japan",
-  "United Arab Emirates",
-  "Mexico",
-  "Brazil",
-  "Italy",
-  "Spain",
-  "Netherlands",
-  "New Zealand",
-  "Singapore",
-  "South Africa",
-  "Other",
-];
-
 export default function SignupPage() {
   // Credentials
   const [email, setEmail] = useState("");
@@ -96,6 +57,27 @@ export default function SignupPage() {
   const [addressCountry, setAddressCountry] = useState("United States");
 
   const [loading, setLoading] = useState(false);
+
+  // Available states for selected country
+  const availableStates = STATES_BY_COUNTRY[addressCountry] || null;
+
+  // When country changes, sync state dropdown or clear
+  const handleCountryChange = (newCountry: string) => {
+    setAddressCountry(newCountry);
+    const newStates = STATES_BY_COUNTRY[newCountry];
+    if (newStates && newStates.length > 0) {
+      setAddressState(newStates[0]);
+    } else {
+      setAddressState("");
+    }
+  };
+
+  // Set default state on initial load
+  useEffect(() => {
+    if (STATES_BY_COUNTRY["United States"]) {
+      setAddressState(STATES_BY_COUNTRY["United States"][0]);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,7 +138,7 @@ export default function SignupPage() {
       <div className="space-y-1.5 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
         <p className="text-sm text-muted-foreground">
-          Get started with your 14-day free trial. No credit card required upfront.
+          Get started with your 14-day free trial. Full access guaranteed.
         </p>
       </div>
 
@@ -211,16 +193,16 @@ export default function SignupPage() {
             Mobile Contact
           </h2>
           <div className="space-y-1.5">
-            <Label htmlFor="mobileNumber">Mobile Number</Label>
+            <Label htmlFor="mobileNumber">Mobile Phone Number</Label>
             <div className="flex gap-2">
               <select
-                className="flex h-10 w-[130px] rounded-md border border-input bg-background px-2 py-1 text-xs sm:text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-[140px] rounded-md border border-input bg-background px-2 py-1 text-xs sm:text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={countryCode}
                 onChange={(e) => setCountryCode(e.target.value)}
               >
-                {COUNTRY_CODES.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.label}
+                {ALL_COUNTRIES.map((c) => (
+                  <option key={`${c.code}-${c.dialCode}`} value={c.dialCode}>
+                    {c.flag} {c.dialCode} ({c.code})
                   </option>
                 ))}
               </select>
@@ -274,6 +256,22 @@ export default function SignupPage() {
             Business Location
           </h2>
           <div className="space-y-2">
+            <Label htmlFor="addressCountry">Country</Label>
+            <select
+              id="addressCountry"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={addressCountry}
+              onChange={(e) => handleCountryChange(e.target.value)}
+            >
+              {ALL_COUNTRIES.map((c) => (
+                <option key={c.code} value={c.name}>
+                  {c.flag} {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="addressStreet">Street Address</Label>
             <Input
               id="addressStreet"
@@ -283,54 +281,55 @@ export default function SignupPage() {
               onChange={(e) => setAddressStreet(e.target.value)}
             />
           </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
               <Label htmlFor="addressCity">City</Label>
               <Input
                 id="addressCity"
                 type="text"
-                placeholder="New York"
+                placeholder="City"
                 value={addressCity}
                 onChange={(e) => setAddressCity(e.target.value)}
               />
             </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="addressState">State / Province</Label>
-              <Input
-                id="addressState"
-                type="text"
-                placeholder="NY"
-                value={addressState}
-                onChange={(e) => setAddressState(e.target.value)}
-              />
+              {availableStates ? (
+                <select
+                  id="addressState"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  value={addressState}
+                  onChange={(e) => setAddressState(e.target.value)}
+                >
+                  {availableStates.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="addressState"
+                  type="text"
+                  placeholder="State / Province"
+                  value={addressState}
+                  onChange={(e) => setAddressState(e.target.value)}
+                />
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="addressZip">Zip / Postal Code</Label>
-              <Input
-                id="addressZip"
-                type="text"
-                placeholder="10001"
-                value={addressZip}
-                onChange={(e) => setAddressZip(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="addressCountry">Country</Label>
-              <select
-                id="addressCountry"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={addressCountry}
-                onChange={(e) => setAddressCountry(e.target.value)}
-              >
-                {COUNTRIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="addressZip">Zip / Postal Code</Label>
+            <Input
+              id="addressZip"
+              type="text"
+              placeholder="Zip / Postal Code"
+              value={addressZip}
+              onChange={(e) => setAddressZip(e.target.value)}
+            />
           </div>
         </div>
 

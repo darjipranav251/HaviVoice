@@ -33,6 +33,10 @@ class UserResponse(BaseModel):
     name: str | None = None
     organization_id: int | None = None
     provider_id: str | None = None
+    is_superuser: bool = False
+    trial_ends_at: str | None = None
+    current_plan: str | None = None
+    stripe_subscription_status: str | None = None
 
 
 class AuthResponse(BaseModel):

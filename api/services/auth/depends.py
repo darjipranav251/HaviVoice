@@ -307,6 +307,9 @@ async def _handle_oss_auth(authorization: str | None) -> UserModel:
         payload = decode_jwt_token(token)
         user = await db_client.get_user_by_id(int(payload["sub"]))
         if user:
+            from api.constants import SUPERADMIN_EMAIL
+            if user.email and user.email.lower() == SUPERADMIN_EMAIL:
+                user.is_superuser = True
             return user
         raise HTTPException(status_code=401, detail="User not found")
     except HTTPException:

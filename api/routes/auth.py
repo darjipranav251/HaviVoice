@@ -94,6 +94,10 @@ async def signup(request: SignupRequest):
         },
     )
 
+    from api.constants import SUPERADMIN_EMAIL
+    is_super = user.is_superuser or (user.email and user.email.lower() == SUPERADMIN_EMAIL)
+    trial_ends = organization.trial_ends_at.isoformat() if organization.trial_ends_at else None
+
     return AuthResponse(
         token=token,
         user=UserResponse(
@@ -102,6 +106,10 @@ async def signup(request: SignupRequest):
             name=request.name,
             organization_id=organization.id,
             provider_id=user.provider_id,
+            is_superuser=is_super,
+            trial_ends_at=trial_ends,
+            current_plan="Superadmin Plan" if is_super else (organization.current_plan or "Standard Trial"),
+            stripe_subscription_status="active" if is_super else (organization.stripe_subscription_status or "trialing"),
         ),
     )
 
@@ -121,6 +129,20 @@ async def login(request: LoginRequest):
     if not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    from api.constants import SUPERADMIN_EMAIL
+    is_super = user.is_superuser or (user.email and user.email.lower() == SUPERADMIN_EMAIL)
+
+    trial_ends = None
+    curr_plan = "Superadmin Plan" if is_super else "Standard Trial"
+    sub_status = "active" if is_super else "trialing"
+
+    if user.selected_organization_id:
+        org = await db_client.get_organization_by_id(user.selected_organization_id)
+        if org:
+            trial_ends = org.trial_ends_at.isoformat() if org.trial_ends_at else None
+            curr_plan = "Superadmin Plan" if is_super else (org.current_plan or "Standard Trial")
+            sub_status = "active" if is_super else (org.stripe_subscription_status or "trialing")
+
     # Create JWT token
     token = create_jwt_token(user.id, user.email)
 
@@ -138,17 +160,41 @@ async def login(request: LoginRequest):
         user=UserResponse(
             id=user.id,
             email=user.email,
+            name=user.name,
             organization_id=user.selected_organization_id,
             provider_id=user.provider_id,
+            is_superuser=is_super,
+            trial_ends_at=trial_ends,
+            current_plan=curr_plan,
+            stripe_subscription_status=sub_status,
         ),
     )
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(user: UserModel = Depends(get_user)):
+    from api.constants import SUPERADMIN_EMAIL
+    is_super = user.is_superuser or (user.email and user.email.lower() == SUPERADMIN_EMAIL)
+
+    trial_ends = None
+    curr_plan = "Superadmin Plan" if is_super else "Standard Trial"
+    sub_status = "active" if is_super else "trialing"
+
+    if user.selected_organization_id:
+        org = await db_client.get_organization_by_id(user.selected_organization_id)
+        if org:
+            trial_ends = org.trial_ends_at.isoformat() if org.trial_ends_at else None
+            curr_plan = "Superadmin Plan" if is_super else (org.current_plan or "Standard Trial")
+            sub_status = "active" if is_super else (org.stripe_subscription_status or "trialing")
+
     return UserResponse(
         id=user.id,
         email=user.email,
+        name=user.name,
         organization_id=user.selected_organization_id,
         provider_id=user.provider_id,
+        is_superuser=is_super,
+        trial_ends_at=trial_ends,
+        current_plan=curr_plan,
+        stripe_subscription_status=sub_status,
     )

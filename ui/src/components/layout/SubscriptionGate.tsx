@@ -22,18 +22,22 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
 
     const localUser = user as LocalUser;
 
-    // Superusers skip billing enforcement
-    if (localUser.is_superuser) {
+    // Superusers skip billing enforcement completely
+    const isSuperuser =
+      Boolean(localUser.is_superuser) ||
+      (Boolean(localUser.email) && localUser.email?.toLowerCase() === "havivoice@gmail.com");
+
+    if (isSuperuser) {
       setIsLockedOut(false);
       return;
     }
 
-    const status = (localUser.stripe_subscription_status || "").toLowerCase();
+    const status = (localUser.stripe_subscription_status || "trialing").toLowerCase();
     const isExplicitlyInactive = ["unpaid", "inactive", "past_due", "canceled", "cancelled", "expired"].includes(status);
 
     const hasActivePaidPlan = status === "active" || status === "manual";
 
-    let trialActive = false;
+    let trialActive = true;
     if (localUser.trial_ends_at) {
       trialActive = new Date(localUser.trial_ends_at) > new Date();
     }

@@ -31,7 +31,8 @@ def is_subscription_active_for_org(
     Returns:
         (is_active: bool, reason_if_inactive: str)
     """
-    if user and getattr(user, "is_superuser", False):
+    from api.constants import SUPERADMIN_EMAIL
+    if user and (getattr(user, "is_superuser", False) or (user.email and user.email.lower() == SUPERADMIN_EMAIL)):
         return True, ""
 
     if not org:
@@ -46,7 +47,7 @@ def is_subscription_active_for_org(
     # Handle trialing or un-set subscription status
     if status == "trialing" or not status:
         if not org.trial_ends_at:
-            return False, "Free trial has expired. Please subscribe to a plan in Billing settings."
+            return True, ""  # Default trial active
 
         now = datetime.now(timezone.utc)
         trial_end = org.trial_ends_at
@@ -67,7 +68,8 @@ async def check_billing_guard(user: UserModel = Depends(get_user)) -> UserModel:
     FastAPI dependency to enforce active subscription or trial.
     Raises HTTP 402 Payment Required if trial has expired or subscription is inactive.
     """
-    if getattr(user, "is_superuser", False):
+    from api.constants import SUPERADMIN_EMAIL
+    if getattr(user, "is_superuser", False) or (user.email and user.email.lower() == SUPERADMIN_EMAIL):
         return user
 
     if not user.selected_organization_id:
