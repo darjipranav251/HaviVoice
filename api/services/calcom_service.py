@@ -92,6 +92,7 @@ def _get_auth_headers(api_key: str) -> Dict[str, str]:
     return {
         "Authorization": f"Bearer {clean_key}",
         "Content-Type": "application/json",
+        "cal-api-version": "2024-08-13",
     }
 
 
@@ -287,21 +288,12 @@ async def create_appointment_with_calcom(
         start_utc = start_time.replace(tzinfo=timezone.utc)
     start_iso = start_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Fetch organization email for fallback attendee email (Google Calendar requires valid TLDs)
-    fallback_email = "booking@havivoice.com"
-    try:
-        async with db_client.async_session() as session:
-            from api.db.models import OrganizationModel
-            org = await session.get(OrganizationModel, organization_id)
-            if org and getattr(org, "notification_email", None):
-                fallback_email = org.notification_email
-    except Exception as e:
-        logger.warning(f"Could not fetch org notification_email: {e}")
-
-    valid_email = (
+    # Generate a clean guest email to prevent Google Calendar "organizer equals attendee" sync collision
+    timestamp_id = int(start_utc.timestamp())
+    clean_client_email = (
         client_email.strip()
         if client_email and "@" in client_email and not client_email.endswith(".internal")
-        else fallback_email
+        else f"caller_{timestamp_id}@havivoice.com"
     )
 
     config = await get_calcom_config(organization_id)
@@ -315,13 +307,19 @@ async def create_appointment_with_calcom(
                     "eventTypeId": int(config["event_type_id"]),
                     "start": start_iso,
                     "attendee": {
-                        "name": client_name,
-                        "email": valid_email,
+                        "name": client_name or "Voice Caller",
+                        "email": clean_client_email,
                         "timeZone": "UTC",
                     },
+                    "bookingFieldsResponses": {
+                        "name": client_name or "Voice Caller",
+                        "email": clean_client_email,
+                        "phone": client_phone or "",
+                        "notes": notes or "Booked via HaviVoice AI Voice Agent",
+                    },
                     "responses": {
-                        "name": client_name,
-                        "email": valid_email,
+                        "name": client_name or "Voice Caller",
+                        "email": clean_client_email,
                         "phone": client_phone or "",
                         "notes": notes or "Booked via HaviVoice AI Voice Agent",
                     },
@@ -335,12 +333,6 @@ async def create_appointment_with_calcom(
                     headers=headers,
                     json=payload,
                 )
-                if res.status_code not in (200, 201):
-                    res = await client.post(
-                        f"{CALCOM_API_V1_BASE}/bookings",
-                        headers=headers,
-                        json=payload,
-                    )
 
                 if res.status_code in (200, 201):
                     booking_data = res.json().get("data", res.json().get("booking", {}))
