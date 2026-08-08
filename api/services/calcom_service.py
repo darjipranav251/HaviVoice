@@ -1,7 +1,7 @@
 """
 Cal.com Integration Service for HaviVoice.
 Provides seamless availability slot queries, booking creation, cancellation,
-and sync between Cal.com REST API and HaviVoice Appointments DB.
+and sync between Cal.com REST API (v2 and v1 fallback) and HaviVoice Appointments DB.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -84,32 +84,58 @@ async def save_calcom_config(
         return config_val
 
 
+def _get_auth_headers(api_key: str) -> Dict[str, str]:
+    """Format Bearer authorization header for Cal.com API v2 and v1."""
+    clean_key = api_key.strip()
+    if clean_key.startswith("Bearer "):
+        clean_key = clean_key.replace("Bearer ", "").strip()
+    return {
+        "Authorization": f"Bearer {clean_key}",
+        "Content-Type": "application/json",
+    }
+
+
 async def test_calcom_connection(api_key: str) -> Dict[str, Any]:
     """Test connection to Cal.com API using API key."""
     if not api_key:
         return {"success": False, "message": "API Key is required"}
 
+    headers = _get_auth_headers(api_key)
+
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            res = await client.get(
-                f"{CALCOM_API_V1_BASE}/me",
-                params={"apiKey": api_key},
-            )
+            # 1. Try v2/me first
+            res = await client.get(f"{CALCOM_API_V2_BASE}/me", headers=headers)
             if res.status_code == 200:
-                data = res.json()
-                user_info = data.get("user", {})
+                data = res.json().get("data", res.json())
+                user_info = data.get("user", data)
                 return {
                     "success": True,
-                    "message": "Successfully connected to Cal.com",
+                    "message": "Successfully connected to Cal.com (API v2)",
                     "username": user_info.get("username"),
                     "email": user_info.get("email"),
                     "name": user_info.get("name"),
                 }
-            else:
+
+            # 2. Fallback to v1/me with Bearer header
+            res_v1 = await client.get(f"{CALCOM_API_V1_BASE}/me", headers=headers)
+            if res_v1.status_code == 200:
+                data = res_v1.json()
+                user_info = data.get("user", {})
                 return {
-                    "success": False,
-                    "message": f"Cal.com API returned status {res.status_code}",
+                    "success": True,
+                    "message": "Successfully connected to Cal.com (API v1)",
+                    "username": user_info.get("username"),
+                    "email": user_info.get("email"),
+                    "name": user_info.get("name"),
                 }
+
+            # If both returned error status
+            err_msg = res.json().get("error", {}).get("message") or f"HTTP Status {res.status_code}"
+            return {
+                "success": False,
+                "message": f"Cal.com connection failed: {err_msg}",
+            }
     except Exception as e:
         logger.error(f"Error testing Cal.com connection: {e}")
         return {"success": False, "message": f"Connection error: {str(e)}"}
@@ -120,28 +146,34 @@ async def fetch_calcom_event_types(api_key: str) -> List[Dict[str, Any]]:
     if not api_key:
         return []
 
+    headers = _get_auth_headers(api_key)
+
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            res = await client.get(
-                f"{CALCOM_API_V1_BASE}/event-types",
-                params={"apiKey": api_key},
-            )
+            # Try v2 event types or v1
+            res = await client.get(f"{CALCOM_API_V2_BASE}/event-types", headers=headers)
+            if res.status_code != 200:
+                res = await client.get(f"{CALCOM_API_V1_BASE}/event-types", headers=headers)
+
             if res.status_code == 200:
                 data = res.json()
-                event_types = data.get("event_types", [])
+                event_types = data.get("data", {}).get("eventTypeGroups", [])
+                if not event_types:
+                    event_types = data.get("event_types", data.get("data", []))
+
                 result = []
                 for et in event_types:
-                    result.append({
-                        "id": et.get("id"),
-                        "title": et.get("title"),
-                        "slug": et.get("slug"),
-                        "length": et.get("length"),
-                    })
+                    if isinstance(et, dict):
+                        result.append({
+                            "id": et.get("id"),
+                            "title": et.get("title") or et.get("name") or "Event Type",
+                            "slug": et.get("slug"),
+                            "length": et.get("length") or 30,
+                        })
                 return result
     except Exception as e:
         logger.error(f"Error fetching Cal.com event types: {e}")
     return []
-
 
 
 async def fetch_available_slots(
@@ -158,33 +190,48 @@ async def fetch_available_slots(
     event_type_id = config.get("event_type_id")
 
     if config.get("is_enabled") and api_key and event_type_id:
+        headers = _get_auth_headers(api_key)
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
+                # 1. Try v2 slots
                 res = await client.get(
-                    f"{CALCOM_API_V1_BASE}/slots",
+                    f"{CALCOM_API_V2_BASE}/slots/available",
                     params={
-                        "apiKey": api_key,
                         "eventTypeId": event_type_id,
                         "startTime": f"{start_date}T00:00:00Z",
                         "endTime": f"{end_date}T23:59:59Z",
                     },
+                    headers=headers,
                 )
+                if res.status_code != 200:
+                    # Fallback to v1 slots
+                    res = await client.get(
+                        f"{CALCOM_API_V1_BASE}/slots",
+                        params={
+                            "eventTypeId": event_type_id,
+                            "startTime": f"{start_date}T00:00:00Z",
+                            "endTime": f"{end_date}T23:59:59Z",
+                        },
+                        headers=headers,
+                    )
+
                 if res.status_code == 200:
                     data = res.json()
-                    raw_slots = data.get("slots", {})
+                    raw_slots = data.get("data", {}).get("slots", data.get("slots", {}))
                     formatted_slots = []
 
-                    for date_str, slots_list in raw_slots.items():
-                        for slot in slots_list:
-                            slot_time = slot.get("time")
-                            if slot_time:
-                                dt = datetime.fromisoformat(slot_time.replace("Z", "+00:00"))
-                                formatted_slots.append({
-                                    "time": slot_time,
-                                    "formatted": dt.strftime("%I:%M %p"),
-                                    "date": date_str,
-                                    "source": "calcom",
-                                })
+                    if isinstance(raw_slots, dict):
+                        for date_str, slots_list in raw_slots.items():
+                            for slot in slots_list:
+                                slot_time = slot.get("time") if isinstance(slot, dict) else slot
+                                if slot_time:
+                                    dt = datetime.fromisoformat(str(slot_time).replace("Z", "+00:00"))
+                                    formatted_slots.append({
+                                        "time": slot_time,
+                                        "formatted": dt.strftime("%I:%M %p"),
+                                        "date": date_str,
+                                        "source": "calcom",
+                                    })
                     return formatted_slots
         except Exception as err:
             logger.warning(f"Cal.com slots fetch failed, falling back to local slots: {err}")
@@ -196,10 +243,8 @@ async def fetch_available_slots(
 
     slots = []
     while current_dt <= end_dt:
-        # Skip Sundays (0 = Mon, 6 = Sun)
         if current_dt.weekday() != 6:
             date_str = current_dt.strftime("%Y-%m-%d")
-            # Generate slots from 9:00 AM to 4:30 PM
             for hour in [9, 10, 11, 13, 14, 15, 16]:
                 for minute in [0, 30]:
                     slot_dt = datetime(
@@ -238,6 +283,7 @@ async def create_appointment_with_calcom(
     booking_uid = None
 
     if config.get("is_enabled") and config.get("api_key") and config.get("event_type_id"):
+        headers = _get_auth_headers(config["api_key"])
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 payload = {
@@ -253,12 +299,19 @@ async def create_appointment_with_calcom(
                     "language": "en",
                 }
                 res = await client.post(
-                    f"{CALCOM_API_V1_BASE}/bookings",
-                    params={"apiKey": config["api_key"]},
+                    f"{CALCOM_API_V2_BASE}/bookings",
+                    headers=headers,
                     json=payload,
                 )
+                if res.status_code not in (200, 201):
+                    res = await client.post(
+                        f"{CALCOM_API_V1_BASE}/bookings",
+                        headers=headers,
+                        json=payload,
+                    )
+
                 if res.status_code in (200, 201):
-                    booking_data = res.json().get("booking", {})
+                    booking_data = res.json().get("data", res.json().get("booking", {}))
                     booking_uid = str(booking_data.get("uid") or booking_data.get("id") or "")
                     logger.info(f"Cal.com booking created successfully: {booking_uid}")
         except Exception as e:
