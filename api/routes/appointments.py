@@ -494,3 +494,60 @@ async def delete_appointment(
         await session.delete(apt)
         await session.commit()
         return {"status": "success", "message": f"Appointment {appointment_id} deleted"}
+
+
+class SaveCalcomSettingsRequest(BaseModel):
+    api_key: Optional[str] = None
+    event_type_id: Optional[str] = None
+    username: Optional[str] = None
+    booking_slug: Optional[str] = None
+    is_enabled: bool = True
+
+
+class TestCalcomRequest(BaseModel):
+    api_key: str
+
+
+@router.get("/calcom/settings")
+async def get_calcom_settings_endpoint(user: UserModel = Depends(get_user)):
+    org_id = resolve_org_id(None, user)
+    from api.services.calcom_service import get_calcom_config
+    return await get_calcom_config(org_id)
+
+
+@router.post("/calcom/settings")
+async def save_calcom_settings_endpoint(
+    req: SaveCalcomSettingsRequest,
+    user: UserModel = Depends(get_user),
+):
+    org_id = resolve_org_id(None, user)
+    from api.services.calcom_service import save_calcom_config
+    return await save_calcom_config(
+        organization_id=org_id,
+        api_key=req.api_key,
+        event_type_id=req.event_type_id,
+        username=req.username,
+        booking_slug=req.booking_slug,
+        is_enabled=req.is_enabled,
+    )
+
+
+@router.post("/calcom/test")
+async def test_calcom_endpoint(
+    req: TestCalcomRequest,
+    user: UserModel = Depends(get_user),
+):
+    from api.services.calcom_service import test_calcom_connection
+    return await test_calcom_connection(req.api_key)
+
+
+@router.get("/calcom/slots")
+async def get_calcom_slots_endpoint(
+    start_date: str = Query(..., description="YYYY-MM-DD"),
+    end_date: str = Query(..., description="YYYY-MM-DD"),
+    user: UserModel = Depends(get_user),
+):
+    org_id = resolve_org_id(None, user)
+    from api.services.calcom_service import fetch_available_slots
+    return await fetch_available_slots(org_id, start_date, end_date)
+

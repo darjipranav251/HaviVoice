@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-
+import { CalcomSettingsModal } from "@/app/appointments/components/CalcomSettingsModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -408,6 +408,8 @@ export default function AppointmentsPage() {
     };
   });
 
+  const [calcomModalOpen, setCalcomModalOpen] = useState(false);
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
@@ -424,29 +426,42 @@ export default function AppointmentsPage() {
           </p>
         </div>
 
-        <Button
-          onClick={() => {
-            const today = new Date().toISOString().split("T")[0];
-            setBookingForm({
-              client_name: "",
-              client_phone: "",
-              client_email: "",
-              title: "Voice Agent Booking",
-              start_date: today,
-              start_time: "10:00",
-              duration_minutes: 30,
-              is_emergency: false,
-              notes: "",
-              address: "",
-            });
-            setBookModalOpen(true);
-          }}
-          className="gap-2 rounded-full"
-        >
-          <Plus className="h-4 w-4" />
-          Book Appointment
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setCalcomModalOpen(true)}
+            className="gap-2 rounded-full border-primary/30 hover:bg-primary/10 cursor-pointer"
+          >
+            <CalendarIcon className="h-4 w-4 text-primary" />
+            Cal.com & Calendar Sync
+          </Button>
+
+          <Button
+            onClick={() => {
+              const today = new Date().toISOString().split("T")[0];
+              setBookingForm({
+                client_name: "",
+                client_phone: "",
+                client_email: "",
+                title: "Voice Agent Booking",
+                start_date: today,
+                start_time: "10:00",
+                duration_minutes: 30,
+                is_emergency: false,
+                notes: "",
+                address: "",
+              });
+              setBookModalOpen(true);
+            }}
+            className="gap-2 rounded-full cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            Book Appointment
+          </Button>
+        </div>
       </div>
+
+      <CalcomSettingsModal open={calcomModalOpen} onOpenChange={setCalcomModalOpen} />
 
       {/* Filters Bar */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-xl border bg-card p-4 shadow-sm">
