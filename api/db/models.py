@@ -161,6 +161,7 @@ class OrganizationModel(Base):
     custom_monthly_minutes = Column(Float, nullable=True)
     custom_max_concurrency = Column(Integer, nullable=True)
     billing_cycle_start = Column(DateTime(timezone=True), nullable=True)
+    billing_cycle_end = Column(DateTime(timezone=True), nullable=True)
     notification_email = Column(String, nullable=True)
 
     # Business Profile & Address

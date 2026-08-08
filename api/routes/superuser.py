@@ -304,8 +304,8 @@ async def list_tenants_billing(user: UserModel = Depends(get_superuser)):
                     stripe_subscription_status=org.stripe_subscription_status or "active",
                     current_plan=org.current_plan or "free",
                     trial_ends_at=org.trial_ends_at.isoformat() if org.trial_ends_at else None,
-                    billing_cycle_start=org.billing_cycle_start.isoformat() if org.billing_cycle_start else None,
-                    billing_cycle_end=org.billing_cycle_end.isoformat() if org.billing_cycle_end else None,
+                    billing_cycle_start=org.billing_cycle_start.isoformat() if getattr(org, "billing_cycle_start", None) else None,
+                    billing_cycle_end=getattr(org, "billing_cycle_end", None).isoformat() if getattr(org, "billing_cycle_end", None) else None,
                     custom_monthly_minutes=org.custom_monthly_minutes,
                     custom_max_concurrency=org.custom_max_concurrency,
                     created_at=org.created_at.isoformat() if org.created_at else "",
@@ -353,11 +353,11 @@ async def update_tenant_billing(
             else:
                 org.billing_cycle_start = datetime.fromisoformat(req.billing_cycle_start.replace("Z", "+00:00"))
 
-        if req.billing_cycle_end is not None:
+        if req.billing_cycle_end is not None and hasattr(org, "billing_cycle_end"):
             if req.billing_cycle_end == "":
-                org.billing_cycle_end = None
+                setattr(org, "billing_cycle_end", None)
             else:
-                org.billing_cycle_end = datetime.fromisoformat(req.billing_cycle_end.replace("Z", "+00:00"))
+                setattr(org, "billing_cycle_end", datetime.fromisoformat(req.billing_cycle_end.replace("Z", "+00:00")))
 
         await session.commit()
         return {"status": "success", "organization_id": organization_id}

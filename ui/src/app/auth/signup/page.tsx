@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { signupApiV1AuthSignupPost } from "@/client/sdk.gen";
@@ -10,6 +10,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ComboboxOption, SearchableCombobox } from "@/components/ui/SearchableCombobox";
 import { ALL_COUNTRIES, STATES_BY_COUNTRY } from "@/lib/countriesData";
 
 const SME_BUSINESS_TYPES = [
@@ -32,7 +33,7 @@ const SME_BUSINESS_TYPES = [
   "Insurance Agency",
   "General Contracting & Roofing",
   "Consulting & Professional Services",
-  "Other Local SME",
+  "Other / Custom Industry",
 ];
 
 export default function SignupPage() {
@@ -48,6 +49,7 @@ export default function SignupPage() {
   // Business Profile
   const [businessName, setBusinessName] = useState("");
   const [businessType, setBusinessType] = useState("Dental Clinic");
+  const [customBusinessType, setCustomBusinessType] = useState("");
 
   // Address
   const [addressStreet, setAddressStreet] = useState("");
@@ -57,6 +59,31 @@ export default function SignupPage() {
   const [addressCountry, setAddressCountry] = useState("United States");
 
   const [loading, setLoading] = useState(false);
+
+  // Prepare searchable options for country phone dial codes
+  const phoneDialCodeOptions: ComboboxOption[] = useMemo(() => {
+    return ALL_COUNTRIES.map((c) => ({
+      value: c.dialCode,
+      label: `${c.flag} ${c.dialCode}`,
+      subLabel: `${c.name} (${c.code})`,
+      flag: c.flag,
+      searchValue: `${c.name} ${c.code} ${c.dialCode} ${c.flag}`,
+    }));
+  }, []);
+
+  // Prepare searchable options for business country location
+  const countryLocationOptions: ComboboxOption[] = useMemo(() => {
+    return ALL_COUNTRIES.map((c) => ({
+      value: c.name,
+      label: c.name,
+      subLabel: c.code,
+      flag: c.flag,
+      searchValue: `${c.name} ${c.code} ${c.flag}`,
+    }));
+  }, []);
+
+  // Check if current businessType requires custom input
+  const isCustomBusiness = businessType === "Other / Custom Industry" || businessType === "Other Local SME";
 
   // Available states for selected country
   const availableStates = STATES_BY_COUNTRY[addressCountry] || null;
@@ -92,6 +119,15 @@ export default function SignupPage() {
       return;
     }
 
+    if (isCustomBusiness && !customBusinessType.trim()) {
+      toast.error("Please specify your business type / industry");
+      return;
+    }
+
+    const effectiveBusinessType = isCustomBusiness
+      ? customBusinessType.trim() || "Other Business"
+      : businessType;
+
     const fullMobile = mobileNumber ? `${countryCode} ${mobileNumber.trim()}` : undefined;
 
     setLoading(true);
@@ -103,7 +139,7 @@ export default function SignupPage() {
           password,
           mobile_number: fullMobile,
           business_name: businessName.trim() || undefined,
-          business_type: businessType || undefined,
+          business_type: effectiveBusinessType || undefined,
           address_street: addressStreet.trim() || undefined,
           address_city: addressCity.trim() || undefined,
           address_state: addressState.trim() || undefined,
@@ -143,7 +179,7 @@ export default function SignupPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Account Info */}
+        {/* Account Credentials */}
         <div className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Account Credentials
@@ -187,7 +223,7 @@ export default function SignupPage() {
           </div>
         </div>
 
-        {/* Mobile Contact */}
+        {/* Mobile Contact with Searchable Country Code */}
         <div className="space-y-3 pt-2 border-t">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Mobile Contact
@@ -195,17 +231,15 @@ export default function SignupPage() {
           <div className="space-y-1.5">
             <Label htmlFor="mobileNumber">Mobile Phone Number</Label>
             <div className="flex gap-2">
-              <select
-                className="flex h-10 w-[140px] rounded-md border border-input bg-background px-2 py-1 text-xs sm:text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-              >
-                {ALL_COUNTRIES.map((c) => (
-                  <option key={`${c.code}-${c.dialCode}`} value={c.dialCode}>
-                    {c.flag} {c.dialCode} ({c.code})
-                  </option>
-                ))}
-              </select>
+              <div className="w-[150px] shrink-0">
+                <SearchableCombobox
+                  options={phoneDialCodeOptions}
+                  value={countryCode}
+                  onChange={setCountryCode}
+                  placeholder="Dial Code"
+                  searchPlaceholder="Search country or code..."
+                />
+              </div>
               <Input
                 id="mobileNumber"
                 type="tel"
@@ -218,7 +252,7 @@ export default function SignupPage() {
           </div>
         </div>
 
-        {/* Business Profile */}
+        {/* Business Profile with Custom Business Type Support */}
         <div className="space-y-3 pt-2 border-t">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Business Details
@@ -237,7 +271,7 @@ export default function SignupPage() {
             <Label htmlFor="businessType">Business Category</Label>
             <select
               id="businessType"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
               value={businessType}
               onChange={(e) => setBusinessType(e.target.value)}
             >
@@ -248,27 +282,39 @@ export default function SignupPage() {
               ))}
             </select>
           </div>
+
+          {/* Render custom business type input if "Other" is selected */}
+          {isCustomBusiness && (
+            <div className="space-y-1.5 animate-in fade-in-50 slide-in-from-top-1">
+              <Label htmlFor="customBusinessType" className="text-primary font-medium">
+                Specify Your Business Category / Industry *
+              </Label>
+              <Input
+                id="customBusinessType"
+                type="text"
+                placeholder="e.g. Chiropractic Clinic, Flight Training, Solar Services..."
+                value={customBusinessType}
+                onChange={(e) => setCustomBusinessType(e.target.value)}
+                required
+              />
+            </div>
+          )}
         </div>
 
-        {/* Location & Address */}
+        {/* Location & Address with Searchable Country */}
         <div className="space-y-3 pt-2 border-t">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Business Location
           </h2>
           <div className="space-y-2">
             <Label htmlFor="addressCountry">Country</Label>
-            <select
-              id="addressCountry"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <SearchableCombobox
+              options={countryLocationOptions}
               value={addressCountry}
-              onChange={(e) => handleCountryChange(e.target.value)}
-            >
-              {ALL_COUNTRIES.map((c) => (
-                <option key={c.code} value={c.name}>
-                  {c.flag} {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={handleCountryChange}
+              placeholder="Select Country"
+              searchPlaceholder="Search country name or code..."
+            />
           </div>
 
           <div className="space-y-2">
@@ -299,7 +345,7 @@ export default function SignupPage() {
               {availableStates ? (
                 <select
                   id="addressState"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
                   value={addressState}
                   onChange={(e) => setAddressState(e.target.value)}
                 >
@@ -333,7 +379,7 @@ export default function SignupPage() {
           </div>
         </div>
 
-        <Button type="submit" className="w-full mt-4" size="lg" disabled={loading}>
+        <Button type="submit" className="w-full mt-4 cursor-pointer" size="lg" disabled={loading}>
           {loading ? "Creating account..." : "Start 14-Day Free Trial"}
         </Button>
       </form>
