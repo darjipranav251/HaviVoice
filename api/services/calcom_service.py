@@ -115,6 +115,35 @@ async def test_calcom_connection(api_key: str) -> Dict[str, Any]:
         return {"success": False, "message": f"Connection error: {str(e)}"}
 
 
+async def fetch_calcom_event_types(api_key: str) -> List[Dict[str, Any]]:
+    """Fetch all event types from Cal.com API for a user."""
+    if not api_key:
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            res = await client.get(
+                f"{CALCOM_API_V1_BASE}/event-types",
+                params={"apiKey": api_key},
+            )
+            if res.status_code == 200:
+                data = res.json()
+                event_types = data.get("event_types", [])
+                result = []
+                for et in event_types:
+                    result.append({
+                        "id": et.get("id"),
+                        "title": et.get("title"),
+                        "slug": et.get("slug"),
+                        "length": et.get("length"),
+                    })
+                return result
+    except Exception as e:
+        logger.error(f"Error fetching Cal.com event types: {e}")
+    return []
+
+
+
 async def fetch_available_slots(
     organization_id: int,
     start_date: str,  # YYYY-MM-DD

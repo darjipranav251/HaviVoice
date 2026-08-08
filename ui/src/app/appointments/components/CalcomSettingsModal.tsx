@@ -16,17 +16,26 @@ interface CalcomSettingsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface EventTypeItem {
+  id: number;
+  title: string;
+  slug: string;
+  length: number;
+}
+
 export function CalcomSettingsModal({ open, onOpenChange }: CalcomSettingsModalProps) {
   const { getAccessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [fetchingEventTypes, setFetchingEventTypes] = useState(false);
 
   const [apiKey, setApiKey] = useState("");
   const [eventTypeId, setEventTypeId] = useState("");
   const [username, setUsername] = useState("");
   const [bookingSlug, setBookingSlug] = useState("");
   const [isEnabled, setIsEnabled] = useState(true);
+  const [eventTypesList, setEventTypesList] = useState<EventTypeItem[]>([]);
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
 
   const fetchSettings = async () => {
@@ -44,11 +53,43 @@ export function CalcomSettingsModal({ open, onOpenChange }: CalcomSettingsModalP
         setUsername(data.username || "");
         setBookingSlug(data.booking_slug || "");
         setIsEnabled(data.is_enabled ?? true);
+
+        if (data.api_key) {
+          fetchEventTypes(data.api_key);
+        }
       }
     } catch (err) {
       console.error("Error loading Cal.com settings:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEventTypes = async (keyToUse: string) => {
+    if (!keyToUse.trim()) return;
+    setFetchingEventTypes(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/v1/appointments/calcom/event-types", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ api_key: keyToUse.trim() }),
+      });
+      if (res.ok) {
+        const list: EventTypeItem[] = await res.json();
+        setEventTypesList(list);
+        if (list.length > 0 && !eventTypeId) {
+          setEventTypeId(String(list[0].id));
+          setBookingSlug(list[0].slug);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching event types:", err);
+    } finally {
+      setFetchingEventTypes(false);
     }
   };
 
@@ -83,6 +124,8 @@ export function CalcomSettingsModal({ open, onOpenChange }: CalcomSettingsModalP
         if (data.username && !username) {
           setUsername(data.username);
         }
+        // Auto fetch event types
+        fetchEventTypes(apiKey.trim());
       } else {
         toast.error(data.message || "Failed to connect to Cal.com");
       }
@@ -91,6 +134,14 @@ export function CalcomSettingsModal({ open, onOpenChange }: CalcomSettingsModalP
       toast.error("Failed to test Cal.com connection");
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleSelectEventType = (idStr: string) => {
+    setEventTypeId(idStr);
+    const selected = eventTypesList.find((e) => String(e.id) === idStr);
+    if (selected) {
+      setBookingSlug(selected.slug);
     }
   };
 
@@ -194,12 +245,42 @@ export function CalcomSettingsModal({ open, onOpenChange }: CalcomSettingsModalP
               />
             </div>
 
-            {/* Event Type ID */}
+            {/* Auto-Fetched Event Types Dropdown */}
+            {eventTypesList.length > 0 && (
+              <div className="space-y-1.5 animate-in fade-in-50">
+                <Label className="text-xs font-semibold text-primary">
+                  Select Cal.com Event Type
+                </Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  value={eventTypeId}
+                  onChange={(e) => handleSelectEventType(e.target.value)}
+                >
+                  {eventTypesList.map((et) => (
+                    <option key={et.id} value={et.id}>
+                      {et.title} ({et.length} min) - ID: {et.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Event Type ID & Booking Slug */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="calEventTypeId" className="text-xs font-semibold">
-                  Event Type ID
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="calEventTypeId" className="text-xs font-semibold">
+                    Event Type ID
+                  </Label>
+                  <a
+                    href="https://app.cal.com/event-types"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-muted-foreground hover:underline"
+                  >
+                    View in Cal.com
+                  </a>
+                </div>
                 <Input
                   id="calEventTypeId"
                   placeholder="e.g. 123456"
@@ -221,7 +302,7 @@ export function CalcomSettingsModal({ open, onOpenChange }: CalcomSettingsModalP
               </div>
             </div>
 
-            {/* Test Connection Button & Indicator */}
+            {/* Test Connection & Auto-Fetch Button */}
             {apiKey && (
               <div className="pt-1 flex items-center justify-between">
                 <Button
@@ -229,11 +310,11 @@ export function CalcomSettingsModal({ open, onOpenChange }: CalcomSettingsModalP
                   variant="outline"
                   size="sm"
                   onClick={handleTestConnection}
-                  disabled={testing}
+                  disabled={testing || fetchingEventTypes}
                   className="gap-1.5 cursor-pointer text-xs"
                 >
-                  {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  Test API Connection
+                  {testing || fetchingEventTypes ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Test API & Fetch Event Types
                 </Button>
 
                 {testResult && (

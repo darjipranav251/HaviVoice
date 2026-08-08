@@ -551,3 +551,13 @@ async def get_calcom_slots_endpoint(
     from api.services.calcom_service import fetch_available_slots
     return await fetch_available_slots(org_id, start_date, end_date)
 
+
+@router.post("/calcom/event-types")
+async def get_calcom_event_types_endpoint(
+    req: TestCalcomRequest,
+    user: UserModel = Depends(get_user),
+):
+    from api.services.calcom_service import fetch_calcom_event_types
+    return await fetch_calcom_event_types(req.api_key)
+
+
