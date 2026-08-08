@@ -275,9 +275,34 @@ async def create_appointment_with_calcom(
 ) -> AppointmentModel:
     """
     Creates an appointment in HaviVoice DB, and posts to Cal.com if configured.
+    Ensures valid ISO UTC start times and deliverable attendee emails to prevent Google Calendar sync errors.
     """
     if not end_time:
         end_time = start_time + timedelta(minutes=30)
+
+    # Format start time in strict ISO UTC format (e.g. 2026-08-10T14:00:00Z)
+    if start_time.tzinfo:
+        start_utc = start_time.astimezone(timezone.utc)
+    else:
+        start_utc = start_time.replace(tzinfo=timezone.utc)
+    start_iso = start_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Fetch organization email for fallback attendee email (Google Calendar requires valid TLDs)
+    fallback_email = "booking@havivoice.com"
+    try:
+        async with db_client.async_session() as session:
+            from api.db.models import OrganizationModel
+            org = await session.get(OrganizationModel, organization_id)
+            if org and getattr(org, "notification_email", None):
+                fallback_email = org.notification_email
+    except Exception as e:
+        logger.warning(f"Could not fetch org notification_email: {e}")
+
+    valid_email = (
+        client_email.strip()
+        if client_email and "@" in client_email and not client_email.endswith(".internal")
+        else fallback_email
+    )
 
     config = await get_calcom_config(organization_id)
     booking_uid = None
@@ -288,15 +313,22 @@ async def create_appointment_with_calcom(
             async with httpx.AsyncClient(timeout=10.0) as client:
                 payload = {
                     "eventTypeId": int(config["event_type_id"]),
-                    "start": start_time.isoformat(),
+                    "start": start_iso,
+                    "attendee": {
+                        "name": client_name,
+                        "email": valid_email,
+                        "timeZone": "UTC",
+                    },
                     "responses": {
                         "name": client_name,
-                        "email": client_email or f"client_{int(start_time.timestamp())}@havivoice.internal",
-                        "notes": notes or "Booked via HaviVoice AI Voice Agent",
+                        "email": valid_email,
                         "phone": client_phone or "",
+                        "notes": notes or "Booked via HaviVoice AI Voice Agent",
                     },
-                    "timeZone": "UTC",
-                    "language": "en",
+                    "metadata": {
+                        "booked_by": "HaviVoice AI Voice Agent",
+                        "organization_id": organization_id,
+                    },
                 }
                 res = await client.post(
                     f"{CALCOM_API_V2_BASE}/bookings",
@@ -314,6 +346,8 @@ async def create_appointment_with_calcom(
                     booking_data = res.json().get("data", res.json().get("booking", {}))
                     booking_uid = str(booking_data.get("uid") or booking_data.get("id") or "")
                     logger.info(f"Cal.com booking created successfully: {booking_uid}")
+                else:
+                    logger.error(f"Cal.com booking returned status {res.status_code}: {res.text}")
         except Exception as e:
             logger.error(f"Failed to post booking to Cal.com: {e}")
 
