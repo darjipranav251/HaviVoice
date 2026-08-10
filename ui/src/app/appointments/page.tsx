@@ -410,6 +410,44 @@ export default function AppointmentsPage() {
 
   const [googleModalOpen, setGoogleModalOpen] = useState(false);
 
+  // Auto-detect and handle 1-click Google OAuth redirect callback (?code=...)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    if (code) {
+      const handleOAuthCallback = async () => {
+        try {
+          const token = await getAccessToken();
+          const redirectUri = `${window.location.origin}/appointments`;
+          const res = await fetch("/api/v1/appointments/google/exchange-code", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              code,
+              redirect_uri: redirectUri,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            toast.success(data.message || "Google Calendar connected successfully!");
+            // Clean up query param from URL bar cleanly
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setGoogleModalOpen(true);
+          } else {
+            toast.error(data.detail || data.message || "Google Calendar OAuth failed");
+          }
+        } catch (err) {
+          console.error("OAuth callback error:", err);
+        }
+      };
+      handleOAuthCallback();
+    }
+  }, []);
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
