@@ -175,6 +175,10 @@ services:
       SMTP_FROM_NAME: "${SMTP_FROM_NAME:-HaviAI Appointments}"
       SMTP_TLS: "${SMTP_TLS:-true}"
 
+      # Google Calendar OAuth Credentials
+      GOOGLE_OAUTH_CLIENT_ID: "${GOOGLE_OAUTH_CLIENT_ID:-}"
+      GOOGLE_OAUTH_CLIENT_SECRET: "${GOOGLE_OAUTH_CLIENT_SECRET:-}"
+
       # Database configuration (using containerized postgres)
       DATABASE_URL: "postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres"
 
