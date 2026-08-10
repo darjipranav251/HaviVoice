@@ -20,9 +20,12 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 GOOGLE_CAL_CONFIG_KEY = "google_calendar_integration"
 
-# Default Google OAuth Client Credentials (Can be overridden via .env or org config)
-DEFAULT_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-DEFAULT_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+def get_default_client_id() -> str:
+    return os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+
+
+def get_default_client_secret() -> str:
+    return os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
 
 
 async def get_google_calendar_config(organization_id: int) -> Dict[str, Any]:
@@ -35,10 +38,13 @@ async def get_google_calendar_config(organization_id: int) -> Dict[str, Any]:
         res = await session.execute(stmt)
         config_record = res.scalars().first()
 
+        default_id = get_default_client_id()
+        default_secret = get_default_client_secret()
+
         if not config_record or not config_record.value:
             return {
-                "client_id": DEFAULT_CLIENT_ID,
-                "client_secret": DEFAULT_CLIENT_SECRET,
+                "client_id": default_id,
+                "client_secret": default_secret,
                 "access_token": None,
                 "refresh_token": None,
                 "expires_at": None,
@@ -49,9 +55,9 @@ async def get_google_calendar_config(organization_id: int) -> Dict[str, Any]:
 
         val = dict(config_record.value)
         if not val.get("client_id"):
-            val["client_id"] = DEFAULT_CLIENT_ID
+            val["client_id"] = default_id
         if not val.get("client_secret"):
-            val["client_secret"] = DEFAULT_CLIENT_SECRET
+            val["client_secret"] = default_secret
         return val
 
 
@@ -72,8 +78,8 @@ async def save_google_calendar_config(
     new_access_token = access_token or existing.get("access_token")
     new_refresh_token = refresh_token or existing.get("refresh_token")
     new_email = connected_email or existing.get("connected_email")
-    new_client_id = client_id or existing.get("client_id") or DEFAULT_CLIENT_ID
-    new_client_secret = client_secret or existing.get("client_secret") or DEFAULT_CLIENT_SECRET
+    new_client_id = client_id or existing.get("client_id") or get_default_client_id()
+    new_client_secret = client_secret or existing.get("client_secret") or get_default_client_secret()
 
     expires_at = None
     if expires_in:
@@ -139,8 +145,8 @@ async def get_valid_access_token(organization_id: int) -> Optional[str]:
     access_token = config.get("access_token")
     refresh_token = config.get("refresh_token")
     expires_at_str = config.get("expires_at")
-    client_id = config.get("client_id") or DEFAULT_CLIENT_ID
-    client_secret = config.get("client_secret") or DEFAULT_CLIENT_SECRET
+    client_id = config.get("client_id") or get_default_client_id()
+    client_secret = config.get("client_secret") or get_default_client_secret()
 
     # Check if access token is still valid (with 2 min safety margin)
     if access_token and expires_at_str:
@@ -195,8 +201,8 @@ async def exchange_oauth_code(
 ) -> Dict[str, Any]:
     """Exchange OAuth authorization code for tokens and user profile."""
     config = await get_google_calendar_config(organization_id)
-    c_id = client_id or config.get("client_id") or DEFAULT_CLIENT_ID
-    c_secret = client_secret or config.get("client_secret") or DEFAULT_CLIENT_SECRET
+    c_id = client_id or config.get("client_id") or get_default_client_id()
+    c_secret = client_secret or config.get("client_secret") or get_default_client_secret()
 
     if not c_id or not c_secret:
         return {"success": False, "message": "Google OAuth Client ID & Client Secret are required"}

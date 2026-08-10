@@ -66,7 +66,7 @@ interface Appointment {
 }
 
 export default function AppointmentsPage() {
-  const { user, getAccessToken } = useAuth();
+  const { user, getAccessToken, loading: authLoading } = useAuth();
   const calendarRef = useRef<any>(null);
 
   const isSuperuser = (user as any)?.is_superuser ?? false;
@@ -412,13 +412,14 @@ export default function AppointmentsPage() {
 
   // Auto-detect and handle 1-click Google OAuth redirect callback (?code=...)
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || authLoading) return;
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     if (code) {
       const handleOAuthCallback = async () => {
         try {
           const token = await getAccessToken();
+          if (!token) return;
           const redirectUri = `${window.location.origin}/appointments`;
           const res = await fetch("/api/v1/appointments/google/exchange-code", {
             method: "POST",
@@ -446,7 +447,7 @@ export default function AppointmentsPage() {
       };
       handleOAuthCallback();
     }
-  }, []);
+  }, [authLoading]);
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
