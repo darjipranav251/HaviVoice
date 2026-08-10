@@ -306,6 +306,22 @@ async def book_appointment(
                 address=req.address,
             )
 
+        # 3. Real-Time Google Calendar Sync via Background Task
+        from api.services.google_calendar_service import create_google_calendar_event
+        background_tasks.add_task(
+            create_google_calendar_event,
+            organization_id=org_id,
+            client_name=req.client_name,
+            client_email=req.client_email,
+            client_phone=req.client_phone,
+            title=req.title or "Appointment",
+            start_time=start_dt,
+            end_time=end_dt,
+            is_emergency=req.is_emergency or False,
+            notes=req.notes,
+            address=req.address,
+        )
+
         return AppointmentItemResponse(
             id=new_apt.id,
             organization_id=new_apt.organization_id,
@@ -493,71 +509,63 @@ async def delete_appointment(
 
         await session.delete(apt)
         await session.commit()
+
+        # Delete from Google Calendar if connected
+        if apt.booking_uid:
+            from api.services.google_calendar_service import delete_google_calendar_event
+            background_tasks.add_task(delete_google_calendar_event, apt.organization_id, apt.booking_uid)
+
         return {"status": "success", "message": f"Appointment {appointment_id} deleted"}
 
 
-class SaveCalcomSettingsRequest(BaseModel):
-    api_key: Optional[str] = None
-    event_type_id: Optional[str] = None
-    username: Optional[str] = None
-    booking_slug: Optional[str] = None
-    is_enabled: bool = True
+class ExchangeGoogleCodeRequest(BaseModel):
+    code: str
+    redirect_uri: str
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
 
 
-class TestCalcomRequest(BaseModel):
-    api_key: str
-
-
-@router.get("/calcom/settings")
-async def get_calcom_settings_endpoint(user: UserModel = Depends(get_user)):
+@router.get("/google/status")
+async def get_google_calendar_status_endpoint(user: UserModel = Depends(get_user)):
+    """Get Google Calendar 1-click sync connection status for organization."""
     org_id = resolve_org_id(None, user)
-    from api.services.calcom_service import get_calcom_config
-    return await get_calcom_config(org_id)
+    from api.services.google_calendar_service import get_google_calendar_config
+    config = await get_google_calendar_config(org_id)
+    return {
+        "is_connected": bool(config.get("is_enabled")),
+        "connected_email": config.get("connected_email"),
+        "calendar_id": config.get("calendar_id", "primary"),
+        "client_id": config.get("client_id"),
+    }
 
 
-@router.post("/calcom/settings")
-async def save_calcom_settings_endpoint(
-    req: SaveCalcomSettingsRequest,
+@router.post("/google/exchange-code")
+async def exchange_google_code_endpoint(
+    req: ExchangeGoogleCodeRequest,
     user: UserModel = Depends(get_user),
 ):
+    """Exchange 1-click Google OAuth authorization code for tokens and connected email."""
     org_id = resolve_org_id(None, user)
-    from api.services.calcom_service import save_calcom_config
-    return await save_calcom_config(
+    from api.services.google_calendar_service import exchange_oauth_code
+    res = await exchange_oauth_code(
         organization_id=org_id,
-        api_key=req.api_key,
-        event_type_id=req.event_type_id,
-        username=req.username,
-        booking_slug=req.booking_slug,
-        is_enabled=req.is_enabled,
+        code=req.code,
+        redirect_uri=req.redirect_uri,
+        client_id=req.client_id,
+        client_secret=req.client_secret,
     )
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("message", "OAuth failed"))
+    return res
 
 
-@router.post("/calcom/test")
-async def test_calcom_endpoint(
-    req: TestCalcomRequest,
-    user: UserModel = Depends(get_user),
-):
-    from api.services.calcom_service import test_calcom_connection
-    return await test_calcom_connection(req.api_key)
-
-
-@router.get("/calcom/slots")
-async def get_calcom_slots_endpoint(
-    start_date: str = Query(..., description="YYYY-MM-DD"),
-    end_date: str = Query(..., description="YYYY-MM-DD"),
-    user: UserModel = Depends(get_user),
-):
+@router.post("/google/disconnect")
+async def disconnect_google_calendar_endpoint(user: UserModel = Depends(get_user)):
+    """Disconnect Google Calendar 1-click sync for organization."""
     org_id = resolve_org_id(None, user)
-    from api.services.calcom_service import fetch_available_slots
-    return await fetch_available_slots(org_id, start_date, end_date)
+    from api.services.google_calendar_service import disconnect_google_calendar
+    success = await disconnect_google_calendar(org_id)
+    return {"success": success, "message": "Google Calendar disconnected"}
 
-
-@router.post("/calcom/event-types")
-async def get_calcom_event_types_endpoint(
-    req: TestCalcomRequest,
-    user: UserModel = Depends(get_user),
-):
-    from api.services.calcom_service import fetch_calcom_event_types
-    return await fetch_calcom_event_types(req.api_key)
 
 

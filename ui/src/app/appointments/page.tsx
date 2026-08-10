@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CalcomSettingsModal } from "@/app/appointments/components/CalcomSettingsModal";
+import { GoogleCalendarSyncModal } from "@/app/appointments/components/GoogleCalendarSyncModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -408,7 +408,7 @@ export default function AppointmentsPage() {
     };
   });
 
-  const [calcomModalOpen, setCalcomModalOpen] = useState(false);
+  const [googleModalOpen, setGoogleModalOpen] = useState(false);
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
@@ -429,11 +429,11 @@ export default function AppointmentsPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
-            onClick={() => setCalcomModalOpen(true)}
-            className="gap-2 rounded-full border-primary/30 hover:bg-primary/10 cursor-pointer"
+            onClick={() => setGoogleModalOpen(true)}
+            className="gap-2 rounded-full border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 cursor-pointer"
           >
-            <CalendarIcon className="h-4 w-4 text-primary" />
-            Cal.com & Calendar Sync
+            <CalendarIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            1-Click Google Calendar Sync
           </Button>
 
           <Button
@@ -461,7 +461,7 @@ export default function AppointmentsPage() {
         </div>
       </div>
 
-      <CalcomSettingsModal open={calcomModalOpen} onOpenChange={setCalcomModalOpen} />
+      <GoogleCalendarSyncModal open={googleModalOpen} onOpenChange={setGoogleModalOpen} />
 
       {/* Filters Bar */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-xl border bg-card p-4 shadow-sm">
