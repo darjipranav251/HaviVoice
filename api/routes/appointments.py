@@ -229,10 +229,40 @@ async def book_appointment(
             detail="Cannot schedule an appointment for a past date or time. Please select a future time slot.",
         )
 
+    # 1. Fetch Organization Appointment Settings (duration, buffer, overlap rules)
+    from api.services.appointment_settings_service import (
+        check_appointment_conflict,
+        get_appointment_settings,
+    )
+    settings = await get_appointment_settings(org_id)
+    duration_mins = settings.get("default_duration_minutes", 30)
+    buffer_mins = settings.get("buffer_minutes", 0)
+    allow_overlap = settings.get("allow_overlap", False)
+
     if not req.end_time:
-        end_dt = start_dt + timedelta(minutes=30)
+        end_dt = start_dt + timedelta(minutes=duration_mins)
     else:
         end_dt = req.end_time
+
+    # 2. Strict Overlap / Double-Booking Conflict Prevention
+    if not allow_overlap:
+        has_conflict, conflicting_apt, next_available = await check_appointment_conflict(
+            organization_id=org_id,
+            start_time=start_dt,
+            end_time=end_dt,
+            buffer_minutes=buffer_mins,
+        )
+        if has_conflict:
+            start_str = check_dt.strftime("%I:%M %p")
+            next_str = next_available.strftime("%I:%M %p on %b %d") if next_available else "a later time"
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Slot conflict: An appointment ({conflicting_apt.title if conflicting_apt else 'Existing Booking'}) "
+                    f"is already booked around {start_str}. "
+                    f"Please select a slot at least {duration_mins} minutes apart (Next available: {next_str})."
+                ),
+            )
 
     async with db_client.async_session() as session:
         org = await session.get(OrganizationModel, org_id)
@@ -566,6 +596,43 @@ async def disconnect_google_calendar_endpoint(user: UserModel = Depends(get_user
     from api.services.google_calendar_service import disconnect_google_calendar
     success = await disconnect_google_calendar(org_id)
     return {"success": success, "message": "Google Calendar disconnected"}
+
+
+class SaveAppointmentSettingsRequest(BaseModel):
+    default_duration_minutes: Optional[int] = 30
+    buffer_minutes: Optional[int] = 0
+    allow_overlap: Optional[bool] = False
+    auto_next_slot: Optional[bool] = True
+    tenant_id: Optional[int] = None
+
+
+@router.get("/settings")
+async def get_appointment_settings_endpoint(
+    tenant_id: Optional[int] = Query(None, description="Superadmin filter for specific tenant ID"),
+    user: UserModel = Depends(get_user),
+):
+    """Get appointment duration and overlap settings for organization."""
+    org_id = resolve_org_id(tenant_id, user)
+    from api.services.appointment_settings_service import get_appointment_settings
+    return await get_appointment_settings(org_id)
+
+
+@router.post("/settings")
+async def save_appointment_settings_endpoint(
+    req: SaveAppointmentSettingsRequest,
+    user: UserModel = Depends(get_user),
+):
+    """Save/update appointment duration, buffer time, and overlap settings."""
+    org_id = resolve_org_id(req.tenant_id, user)
+    from api.services.appointment_settings_service import save_appointment_settings
+    return await save_appointment_settings(
+        organization_id=org_id,
+        default_duration_minutes=req.default_duration_minutes,
+        buffer_minutes=req.buffer_minutes,
+        allow_overlap=req.allow_overlap,
+        auto_next_slot=req.auto_next_slot,
+    )
+
 
 
 

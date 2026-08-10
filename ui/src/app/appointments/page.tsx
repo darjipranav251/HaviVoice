@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { AppointmentSettingsModal } from "@/app/appointments/components/AppointmentSettingsModal";
 import { GoogleCalendarSyncModal } from "@/app/appointments/components/GoogleCalendarSyncModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -449,6 +450,8 @@ export default function AppointmentsPage() {
     }
   }, [authLoading]);
 
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+
   return (
     <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
@@ -466,6 +469,15 @@ export default function AppointmentsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setSettingsModalOpen(true)}
+            className="gap-2 rounded-full border-primary/30 text-foreground hover:bg-primary/10 cursor-pointer"
+          >
+            <Clock className="h-4 w-4 text-primary" />
+            Booking Rules
+          </Button>
+
           <Button
             variant="outline"
             onClick={() => setGoogleModalOpen(true)}
@@ -501,6 +513,12 @@ export default function AppointmentsPage() {
       </div>
 
       <GoogleCalendarSyncModal open={googleModalOpen} onOpenChange={setGoogleModalOpen} />
+      <AppointmentSettingsModal
+        open={settingsModalOpen}
+        onOpenChange={setSettingsModalOpen}
+        selectedTenantId={isSuperuser ? selectedTenantId : null}
+        onSaved={fetchAppointments}
+      />
 
       {/* Filters Bar */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-xl border bg-card p-4 shadow-sm">
