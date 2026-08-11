@@ -1,7 +1,8 @@
 from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import Date, and_, cast, func, or_, select
 
@@ -29,6 +30,7 @@ class BookAppointmentRequest(BaseModel):
     notes: Optional[str] = None
     address: Optional[str] = None
     organization_id: Optional[int] = None
+    timezone: Optional[str] = None
 
 
 class UpdateAppointmentStatusRequest(BaseModel):
@@ -215,6 +217,7 @@ async def send_test_appointment_email(
 async def book_appointment(
     req: BookAppointmentRequest,
     background_tasks: BackgroundTasks,
+    x_timezone: Optional[str] = Header(None, alias="X-Timezone"),
     user: UserModel = Depends(get_user),
 ):
     """Book a new appointment. Called by AI voice call HTTP tool or UI."""
@@ -253,28 +256,41 @@ async def book_appointment(
             buffer_minutes=buffer_mins,
         )
         if has_conflict:
-            user_tz = start_dt.tzinfo if start_dt and start_dt.tzinfo else timezone.utc
-            
+            # Resolve user display timezone cleanly
+            tz_str = req.timezone or x_timezone
+            user_tz = None
+            if tz_str:
+                try:
+                    user_tz = ZoneInfo(tz_str)
+                except Exception:
+                    pass
+            if not user_tz:
+                if start_dt.tzinfo and start_dt.tzinfo != timezone.utc:
+                    user_tz = start_dt.tzinfo
+                else:
+                    user_tz = timezone.utc
+
             if conflicting_apt and conflicting_apt.start_time:
                 apt_start = conflicting_apt.start_time
                 if apt_start.tzinfo is None:
                     apt_start = apt_start.replace(tzinfo=timezone.utc)
-                existing_start_local = apt_start.astimezone(user_tz)
+                existing_start_local = apt_start.astimezone(user_tz) if user_tz != timezone.utc else apt_start
                 existing_start_str = existing_start_local.strftime("%I:%M %p")
             else:
                 existing_start_str = check_dt.astimezone(user_tz).strftime("%I:%M %p")
 
             if next_available:
                 next_avail_dt = next_available if next_available.tzinfo else next_available.replace(tzinfo=timezone.utc)
-                next_avail_local = next_avail_dt.astimezone(user_tz)
+                next_avail_local = next_avail_dt.astimezone(user_tz) if user_tz != timezone.utc else next_avail_dt
                 next_str = next_avail_local.strftime("%I:%M %p on %b %d")
             else:
                 next_str = "a later time"
 
+            apt_title = conflicting_apt.title.strip() if conflicting_apt and conflicting_apt.title else "Existing Booking"
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"Slot conflict: An appointment ({conflicting_apt.title if conflicting_apt else 'Existing Booking'}) "
+                    f"Slot conflict: An appointment ({apt_title}) "
                     f"is already booked around {existing_start_str}. "
                     f"Please select a slot at least {duration_mins} minutes apart (Next available: {next_str})."
                 ),

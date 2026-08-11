@@ -245,11 +245,13 @@ export default function AppointmentsPage() {
       const startDateTime = new Date(`${bookingForm.start_date}T${bookingForm.start_time}:00`);
       const endDateTime = new Date(startDateTime.getTime() + bookingForm.duration_minutes * 60000);
 
+      const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const res = await fetch("/api/v1/appointments/book", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Timezone": userTz,
         },
         body: JSON.stringify({
           client_name: bookingForm.client_name,
@@ -261,6 +263,7 @@ export default function AppointmentsPage() {
           is_emergency: bookingForm.is_emergency,
           notes: bookingForm.notes,
           address: bookingForm.address || null,
+          timezone: userTz,
         }),
       });
 
