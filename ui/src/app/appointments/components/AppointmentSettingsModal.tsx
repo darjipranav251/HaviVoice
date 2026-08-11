@@ -89,7 +89,15 @@ export function AppointmentSettingsModal({
         if (onSaved) onSaved();
         onOpenChange(false);
       } else {
-        toast.error(data.detail || "Failed to save appointment settings");
+        const errorMsg =
+          typeof data.detail === "string"
+            ? data.detail
+            : Array.isArray(data.detail)
+            ? data.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(", ")
+            : typeof data.detail === "object" && data.detail !== null
+            ? data.detail.msg || data.detail.message || JSON.stringify(data.detail)
+            : "Failed to save appointment settings";
+        toast.error(errorMsg);
       }
     } catch (err) {
       console.error(err);

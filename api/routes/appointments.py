@@ -253,13 +253,29 @@ async def book_appointment(
             buffer_minutes=buffer_mins,
         )
         if has_conflict:
-            start_str = check_dt.strftime("%I:%M %p")
-            next_str = next_available.strftime("%I:%M %p on %b %d") if next_available else "a later time"
+            user_tz = start_dt.tzinfo if start_dt and start_dt.tzinfo else timezone.utc
+            
+            if conflicting_apt and conflicting_apt.start_time:
+                apt_start = conflicting_apt.start_time
+                if apt_start.tzinfo is None:
+                    apt_start = apt_start.replace(tzinfo=timezone.utc)
+                existing_start_local = apt_start.astimezone(user_tz)
+                existing_start_str = existing_start_local.strftime("%I:%M %p")
+            else:
+                existing_start_str = check_dt.astimezone(user_tz).strftime("%I:%M %p")
+
+            if next_available:
+                next_avail_dt = next_available if next_available.tzinfo else next_available.replace(tzinfo=timezone.utc)
+                next_avail_local = next_avail_dt.astimezone(user_tz)
+                next_str = next_avail_local.strftime("%I:%M %p on %b %d")
+            else:
+                next_str = "a later time"
+
             raise HTTPException(
                 status_code=409,
                 detail=(
                     f"Slot conflict: An appointment ({conflicting_apt.title if conflicting_apt else 'Existing Booking'}) "
-                    f"is already booked around {start_str}. "
+                    f"is already booked around {existing_start_str}. "
                     f"Please select a slot at least {duration_mins} minutes apart (Next available: {next_str})."
                 ),
             )
@@ -598,21 +614,40 @@ async def disconnect_google_calendar_endpoint(user: UserModel = Depends(get_user
     return {"success": success, "message": "Google Calendar disconnected"}
 
 
+from typing import Union
+from pydantic import field_validator
+
 class SaveAppointmentSettingsRequest(BaseModel):
     default_duration_minutes: Optional[int] = 30
     buffer_minutes: Optional[int] = 0
     allow_overlap: Optional[bool] = False
     auto_next_slot: Optional[bool] = True
-    tenant_id: Optional[int] = None
+    tenant_id: Optional[Union[int, str]] = None
+
+    @field_validator("tenant_id", mode="before")
+    def parse_tenant_id(cls, v):
+        if v is None or v == "" or v == "null" or v == "undefined":
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
 
 
 @router.get("/settings")
 async def get_appointment_settings_endpoint(
-    tenant_id: Optional[int] = Query(None, description="Superadmin filter for specific tenant ID"),
+    tenant_id: Optional[Union[int, str]] = Query(None, description="Superadmin filter for specific tenant ID"),
     user: UserModel = Depends(get_user),
 ):
     """Get appointment duration and overlap settings for organization."""
-    org_id = resolve_org_id(tenant_id, user)
+    parsed_tenant = None
+    if tenant_id and tenant_id != "" and tenant_id != "null":
+        try:
+            parsed_tenant = int(tenant_id)
+        except (ValueError, TypeError):
+            parsed_tenant = None
+
+    org_id = resolve_org_id(parsed_tenant, user)
     from api.services.appointment_settings_service import get_appointment_settings
     return await get_appointment_settings(org_id)
 
